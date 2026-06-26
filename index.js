@@ -8,6 +8,7 @@ import morgan from 'morgan'
 import authRoutes from './routes/auth.route.js'
 import reportRoutes from './routes/reports.route.js'
 import contactRoutes from './routes/contact.route.js'
+import ticketRoutes from './routes/tickets.route.js'
 
 const app = express()
 const isProd = process.env.NODE_ENV === 'production'
@@ -80,6 +81,7 @@ app.use(rateLimit({
 app.use('/api/auth',    authRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/contact', contactRoutes)
+app.use('/api/tickets', ticketRoutes)
 
 /* ── Health check ── */
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', env: process.env.NODE_ENV }))

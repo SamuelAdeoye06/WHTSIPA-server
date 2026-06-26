@@ -21,6 +21,7 @@ const reportSchema = new mongoose.Schema({
   incidentStatus:        { type: String },
   effectsOfIncident:     { type: String },
   linksImposterDetails:  { type: String },
+  evidenceFiles:         { type: [String], default: [] },
 }, { timestamps: true })
 
 export default mongoose.model('Report', reportSchema)
