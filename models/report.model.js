@@ -4,8 +4,8 @@ const reportSchema = new mongoose.Schema({
   user:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   reportType:    { type: String, enum: ['personal', 'public'], required: true },
   incidentType:  { type: String, required: true },
-  fullName:      { type: String, required: true },
-  email:         { type: String, required: true },
+  fullName:      { type: String },
+  email:         { type: String },
   phone:         { type: String },
   country:       { type: String },
   organization:  { type: String },
@@ -15,6 +15,7 @@ const reportSchema = new mongoose.Schema({
   status:        { type: String, enum: ['open','in-review','resolved'], default: 'open' },
   // New fields
   communicationMethod:   { type: String },
+  communicationValue:    { type: String },
   financialLoss:         { type: String },
   consentShareAnonymized:{ type: Boolean },
   contactedAuthorities:  { type: String },

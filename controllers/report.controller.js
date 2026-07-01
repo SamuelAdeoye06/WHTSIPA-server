@@ -7,19 +7,19 @@ export async function submitReport(req, res) {
     const {
       reportType, incidentType, fullName, email,
       phone, country, organization, targetedName, socialHandles, detail,
-      communicationMethod, financialLoss, consentShareAnonymized,
+      communicationMethod, communicationValue, financialLoss, consentShareAnonymized,
       contactedAuthorities, incidentStatus, effectsOfIncident, linksImposterDetails,
       evidenceFiles
     } = req.body
 
-    if (!reportType || !incidentType || !fullName || !email || !detail)
+    if (!reportType || !incidentType || !detail)
       return res.status(400).json({ message: 'Required fields are missing.' })
 
     const report = await Report.create({
       user: req.user._id,
       reportType, incidentType, fullName, email,
       phone, country, organization, targetedName, socialHandles, detail,
-      communicationMethod, financialLoss, consentShareAnonymized,
+      communicationMethod, communicationValue, financialLoss, consentShareAnonymized,
       contactedAuthorities, incidentStatus, effectsOfIncident, linksImposterDetails,
       evidenceFiles: Array.isArray(evidenceFiles) ? evidenceFiles : []
     })

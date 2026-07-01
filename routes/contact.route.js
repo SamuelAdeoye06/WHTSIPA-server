@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
+import { protect } from '../middleware/auth.middleware.js'
 import { submitContact, getAllContacts } from '../controllers/contact.controller.js'
 
 const router = Router()
@@ -10,7 +11,7 @@ const contactLimit = rateLimit({
   message: { message: 'Too many messages sent. Please try again later.' },
 })
 
-router.post('/submit', contactLimit, submitContact)
+router.post('/submit', protect, contactLimit, submitContact)
 router.get('/all', getAllContacts)   // will add admin protect middleware later
 
 export default router

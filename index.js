@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.route.js'
 import reportRoutes from './routes/reports.route.js'
 import contactRoutes from './routes/contact.route.js'
 import ticketRoutes from './routes/tickets.route.js'
+import bookingRoutes from './routes/booking.route.js'
 
 const app = express()
 const isProd = process.env.NODE_ENV === 'production'
@@ -82,6 +83,7 @@ app.use('/api/auth',    authRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/contact', contactRoutes)
 app.use('/api/tickets', ticketRoutes)
+app.use('/api/booking', bookingRoutes)
 
 /* ── Health check ── */
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', env: process.env.NODE_ENV }))
