@@ -1,34 +1,48 @@
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
-})
+const resend = new Resend(process.env.RESEND_API_KEY)
 
-export async function sendVerificationEmail(to, token) {
-  const link = `${process.env.CLIENT_URL}/verify-email?token=${token}`
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM,
+/* ── Shared sender ──────────────────────────────────────────
+   Wraps resend.emails.send with consistent error handling/logging
+   so a mail failure surfaces clearly instead of silently vanishing. */
+async function send({ to, subject, html, replyTo }) {
+  const { data, error } = await resend.emails.send({
+    from:    process.env.MAIL_FROM,
     to,
-    subject: 'Confirm your WHTS account',
+    subject,
+    html,
+    ...(replyTo ? { replyTo } : {}),
+  })
+
+  if (error) {
+    console.error('Resend send error:', error)
+    throw new Error(error.message || 'Failed to send email.')
+  }
+  return data
+}
+
+/* ── OTP verification email ── */
+export async function sendOtpEmail(to, otp, firstName = '') {
+  await send({
+    to,
+    subject: `${otp} is your WHTS verification code`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:auto">
         <h2 style="color:#0f172a">Confirm your email</h2>
-        <p>Thanks for joining WHTS. Click the button below to verify your email address.</p>
-        <a href="${link}" style="display:inline-block;background:#0d9488;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;margin:16px 0">
-          Confirm Email
-        </a>
-        <p style="color:#6b7280;font-size:0.85rem">This link expires in 24 hours. If you didn't create an account, ignore this email.</p>
-        <p style="color:#6b7280;font-size:0.85rem">Or copy this link: ${link}</p>
+        <p>${firstName ? `Hi ${firstName}, thanks` : 'Thanks'} for joining WHTS. Enter the code below to verify your email address.</p>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;margin:20px 0;text-align:center">
+          <span style="font-size:2rem;font-weight:800;letter-spacing:0.4em;color:#0d9488">${otp}</span>
+        </div>
+        <p style="color:#6b7280;font-size:0.85rem">This code expires in 10 minutes. If you didn't create an account, ignore this email.</p>
       </div>
     `,
   })
 }
 
+/* ── Password reset email (still link-based) ── */
 export async function sendPasswordResetEmail(to, token) {
   const link = `${process.env.CLIENT_URL}/reset-password?token=${token}`
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM,
+  await send({
     to,
     subject: 'Reset your WHTS password',
     html: `
@@ -43,11 +57,11 @@ export async function sendPasswordResetEmail(to, token) {
     `,
   })
 }
+
 export async function sendContactNotification({ name, email, subject, message }) {
   const SUPPORT_INBOX = process.env.MAIL_USER  // Sends to your own admin email
 
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM,
+  await send({
     to: SUPPORT_INBOX,
     replyTo: email,
     subject: `[WHTS Contact] ${subject}`,
@@ -85,8 +99,7 @@ export async function sendContactNotification({ name, email, subject, message })
 export async function sendReportNotification({ fullName, email, reportType, incidentType, phone, country }) {
   const SUPPORT_INBOX = process.env.MAIL_USER
 
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM,
+  await send({
     to: SUPPORT_INBOX,
     subject: `[WHTSIPA Report] New ${reportType} incident — ${incidentType}`,
     html: `
@@ -134,8 +147,7 @@ export async function sendReportNotification({ fullName, email, reportType, inci
 }
 
 export async function sendBookingNotification({ name, email, phone, preferredDate, preferredTime, notes }) {
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM,
+  await send({
     to: process.env.MAIL_FROM,
     subject: `📞 New Call Session Booked — ${name}`,
     html: `

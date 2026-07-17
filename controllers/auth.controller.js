@@ -1,7 +1,33 @@
 import crypto from 'crypto'
 import User from '../models/user.model.js'
 import { signToken } from '../utils/jwt.js'
-import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/mailer.js'
+import { sendOtpEmail, sendPasswordResetEmail } from '../utils/mailer.js'
+
+const OTP_EXPIRY_MS   = 10 * 60 * 1000   // 10 minutes
+const OTP_RESEND_MS   = 60 * 1000        // 60s cooldown between sends
+const OTP_MAX_ATTEMPTS = 5               // wrong tries before a resend is required
+
+/* Generate a random 6-digit OTP, e.g. "042917" (keeps leading zeros) */
+function generateOtp() {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
+}
+
+/* We never store the raw OTP — only its SHA-256 hash — so a DB
+   leak doesn't expose active codes (same principle as password hashing,
+   just without bcrypt's cost factor since OTPs are short-lived). */
+function hashOtp(otp) {
+  return crypto.createHash('sha256').update(otp).digest('hex')
+}
+
+/* Attach a fresh OTP to a user doc (mutates in place) and returns the raw code to email out */
+function issueOtp(user) {
+  const otp = generateOtp()
+  user.otpHash       = hashOtp(otp)
+  user.otpExpiry     = new Date(Date.now() + OTP_EXPIRY_MS)
+  user.otpAttempts    = 0
+  user.otpLastSentAt = new Date()
+  return otp
+}
 
 /* ── POST /api/auth/register ── */
 export async function register(req, res) {
@@ -24,24 +50,39 @@ export async function register(req, res) {
       !/[^A-Za-z0-9]/.test(password)
     ) return res.status(400).json({ message: 'Password must be at least 12 characters with uppercase, number, and symbol.' })
 
-    const existing = await User.findOne({ email: email.toLowerCase() })
-    if (existing) return res.status(409).json({ message: 'An account with this email already exists.' })
+    const normalizedEmail = email.toLowerCase().trim()
+    const existing = await User.findOne({ email: normalizedEmail })
 
-    const verifyToken  = crypto.randomBytes(32).toString('hex')
-    const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    let user
+    if (existing) {
+      // Already fully verified — this email is taken.
+      if (existing.isVerified)
+        return res.status(409).json({ message: 'An account with this email already exists.' })
 
-    await User.create({
-      firstName: firstName.trim(),
-      lastName:  lastName.trim(),
-      email:     email.toLowerCase().trim(),
-      country, phone, password,
-      verifyToken, verifyExpiry,
-    })
+      // Unverified account from an abandoned signup — overwrite their details
+      // and issue a fresh OTP rather than blocking them with a dead-end error.
+      existing.firstName = firstName.trim()
+      existing.lastName  = lastName.trim()
+      existing.country   = country
+      existing.phone      = phone
+      existing.password  = password // re-hashed by the pre-save hook
+      user = existing
+    } else {
+      user = new User({
+        firstName: firstName.trim(),
+        lastName:  lastName.trim(),
+        email:     normalizedEmail,
+        country, phone, password,
+      })
+    }
 
-    await sendVerificationEmail(email.toLowerCase().trim(), verifyToken)
+    const otp = issueOtp(user)
+    await user.save()
+    await sendOtpEmail(normalizedEmail, otp, user.firstName)
 
     return res.status(201).json({
-      message: 'Account created. Please check your email to confirm your account before signing in.',
+      message: 'Account created. We\'ve sent a 6-digit code to your email — enter it to verify your account.',
+      email:   normalizedEmail,
     })
   } catch (err) {
     console.error('register error:', err)
@@ -52,26 +93,87 @@ export async function register(req, res) {
   }
 }
 
-/* ── GET /api/auth/verify-email?token=... ── */
-export async function verifyEmail(req, res) {
+/* ── POST /api/auth/verify-otp ── */
+export async function verifyOtp(req, res) {
   try {
-    const { token } = req.query
-    if (!token) return res.status(400).json({ message: 'Verification token is missing.' })
+    const { email, otp } = req.body
+    if (!email || !otp)
+      return res.status(400).json({ message: 'Email and code are required.' })
 
-    const user = await User.findOne({
-      verifyToken: token,
-      verifyExpiry: { $gt: new Date() },
-    })
-    if (!user) return res.status(400).json({ message: 'Invalid or expired verification link.' })
+    const user = await User.findOne({ email: email.toLowerCase().trim() })
+    if (!user) return res.status(400).json({ message: 'Invalid email or code.' })
+
+    if (user.isVerified)
+      return res.status(400).json({ message: 'This account is already verified. Please sign in.' })
+
+    if (!user.otpHash || !user.otpExpiry || user.otpExpiry < new Date())
+      return res.status(400).json({ message: 'Code expired. Please request a new one.' })
+
+    if (user.otpAttempts >= OTP_MAX_ATTEMPTS)
+      return res.status(429).json({ message: 'Too many incorrect attempts. Please request a new code.' })
+
+    if (hashOtp(String(otp).trim()) !== user.otpHash) {
+      user.otpAttempts += 1
+      await user.save()
+      const remaining = OTP_MAX_ATTEMPTS - user.otpAttempts
+      return res.status(400).json({
+        message: remaining > 0
+          ? `Incorrect code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+          : 'Incorrect code. Please request a new one.',
+      })
+    }
 
     user.isVerified   = true
-    user.verifyToken  = undefined
-    user.verifyExpiry = undefined
+    user.otpHash      = undefined
+    user.otpExpiry    = undefined
+    user.otpAttempts  = 0
+    user.otpLastSentAt = undefined
     await user.save()
 
-    return res.json({ message: 'Email verified successfully. You can now sign in.' })
+    // Auto sign-in on successful verification — no need to make them log in again.
+    const token = signToken({ id: user._id })
+    return res.json({
+      message: 'Email verified successfully.',
+      token,
+      user: {
+        id:        user._id,
+        name:      user.name,
+        firstName: user.firstName,
+        email:     user.email,
+        country:   user.country,
+      },
+    })
   } catch (err) {
-    console.error('verifyEmail error:', err)
+    console.error('verifyOtp error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── POST /api/auth/resend-otp ── */
+export async function resendOtp(req, res) {
+  try {
+    const { email } = req.body
+    if (!email) return res.status(400).json({ message: 'Email is required.' })
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() })
+
+    // Generic message to avoid confirming/denying account existence,
+    // consistent with the forgot-password flow below.
+    const successMsg = 'If this account is pending verification, a new code has been sent.'
+    if (!user || user.isVerified) return res.json({ message: successMsg })
+
+    if (user.otpLastSentAt && Date.now() - user.otpLastSentAt.getTime() < OTP_RESEND_MS) {
+      const secondsLeft = Math.ceil((OTP_RESEND_MS - (Date.now() - user.otpLastSentAt.getTime())) / 1000)
+      return res.status(429).json({ message: `Please wait ${secondsLeft}s before requesting another code.`, secondsLeft })
+    }
+
+    const otp = issueOtp(user)
+    await user.save()
+    await sendOtpEmail(user.email, otp, user.firstName)
+
+    return res.json({ message: successMsg })
+  } catch (err) {
+    console.error('resendOtp error:', err)
     return res.status(500).json({ message: 'Server error.' })
   }
 }
