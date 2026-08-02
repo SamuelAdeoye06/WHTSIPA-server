@@ -30,13 +30,45 @@ export async function submitContact(req, res) {
   }
 }
 
-/* ── GET /api/contact/all  (admin only — wired up later) ── */
+/* ── GET /api/contact/all ──
+   Admin only (enforced by protect + requireAdmin middleware on the route). */
 export async function getAllContacts(req, res) {
   try {
     const contacts = await Contact.find().sort({ createdAt: -1 })
     return res.json(contacts)
   } catch (err) {
     console.error('getAllContacts error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── PATCH /api/contact/:id/status ──
+   Admin only — mark a message unread / read / replied. */
+export async function updateContactStatus(req, res) {
+  try {
+    const { status } = req.body
+    if (!['unread', 'read', 'replied'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status.' })
+    }
+    const contact = await Contact.findByIdAndUpdate(req.params.id, { status }, { new: true })
+    if (!contact) return res.status(404).json({ message: 'Message not found.' })
+    return res.json(contact)
+  } catch (err) {
+    console.error('updateContactStatus error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── DELETE /api/contact/:id ──
+   Admin only — permanently deletes a contact message. Manual action
+   from the admin panel; not tied to or triggered by a PDF download. */
+export async function deleteContact(req, res) {
+  try {
+    const deleted = await Contact.findByIdAndDelete(req.params.id)
+    if (!deleted) return res.status(404).json({ message: 'Message not found.' })
+    return res.json({ message: 'Message deleted.' })
+  } catch (err) {
+    console.error('deleteContact error:', err)
     return res.status(500).json({ message: 'Server error.' })
   }
 }

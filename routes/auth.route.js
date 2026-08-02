@@ -9,6 +9,7 @@ import {
   getMe,
   forgotPassword,
   resetPassword,
+  changePassword,
 } from '../controllers/auth.controller.js'
 
 const router = Router()
@@ -43,5 +44,6 @@ router.post('/login',           authLimit,      login)
 router.get('/me',               protect,        getMe)
 router.post('/forgot-password', authLimit,      forgotPassword)
 router.post('/reset-password',                  resetPassword)
+router.post('/change-password', protect,        changePassword)
 
 export default router

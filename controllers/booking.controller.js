@@ -18,13 +18,10 @@ export async function getCallbackNumber(req, res) {
 }
 
 /* ── PUT /api/booking/callback-number ──
-   Admin only — update the callback number used for all future bookings. */
+   Admin only (enforced by requireAdmin middleware on the route) —
+   update the callback number used for all future bookings. */
 export async function updateCallbackNumber(req, res) {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Admin access required.' })
-    }
-
     const { callbackNumber } = req.body
     if (!callbackNumber?.trim()) {
       return res.status(400).json({ message: 'callbackNumber is required.' })
@@ -96,13 +93,10 @@ export async function getMyBookings(req, res) {
 }
 
 /* ── GET /api/booking/all ──
-   Admin only — list every booking session for the admin panel. */
+   Admin only (enforced by requireAdmin middleware on the route) —
+   list every booking session for the admin panel. */
 export async function getAllBookings(req, res) {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Admin access required.' })
-    }
-
     const bookings = await BookingSession.find()
       .populate('user', 'firstName lastName email')
       .sort({ createdAt: -1 })
@@ -110,6 +104,37 @@ export async function getAllBookings(req, res) {
     return res.json(bookings)
   } catch (err) {
     console.error('getAllBookings error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── DELETE /api/booking/:id ──
+   Admin only — permanently deletes a booking record. Manual action
+   from the admin panel; not tied to or triggered by a PDF download. */
+export async function deleteBooking(req, res) {
+  try {
+    const deleted = await BookingSession.findByIdAndDelete(req.params.id)
+    if (!deleted) return res.status(404).json({ message: 'Booking not found.' })
+    return res.json({ message: 'Booking deleted.' })
+  } catch (err) {
+    console.error('deleteBooking error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── PATCH /api/booking/:id/status ──
+   Admin only — update status: pending / confirmed / completed / cancelled. */
+export async function updateBookingStatus(req, res) {
+  try {
+    const { status } = req.body
+    if (!['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status.' })
+    }
+    const booking = await BookingSession.findByIdAndUpdate(req.params.id, { status }, { new: true })
+    if (!booking) return res.status(404).json({ message: 'Booking not found.' })
+    return res.json(booking)
+  } catch (err) {
+    console.error('updateBookingStatus error:', err)
     return res.status(500).json({ message: 'Server error.' })
   }
 }

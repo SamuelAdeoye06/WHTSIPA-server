@@ -141,6 +141,7 @@ export async function verifyOtp(req, res) {
         firstName: user.firstName,
         email:     user.email,
         country:   user.country,
+        role:      user.role,
       },
     })
   } catch (err) {
@@ -202,6 +203,7 @@ export async function login(req, res) {
         firstName: user.firstName,
         email:     user.email,
         country:   user.country,
+        role:      user.role,
       },
     })
   } catch (err) {
@@ -219,6 +221,7 @@ export function getMe(req, res) {
     firstName: u.firstName,
     email:     u.email,
     country:   u.country,
+    role:      u.role,
   })
 }
 
@@ -273,6 +276,40 @@ export async function resetPassword(req, res) {
     return res.json({ message: 'Password reset successfully. You can now sign in.' })
   } catch (err) {
     console.error('resetPassword error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── POST /api/auth/change-password ──
+   Protected — for a logged-in user (namely, the admin from the
+   Settings page) to change their own password, given they already
+   know the current one. Different from resetPassword, which is for
+   someone who's locked out and uses an emailed token instead. */
+export async function changePassword(req, res) {
+  try {
+    const { currentPassword, newPassword } = req.body
+    if (!currentPassword || !newPassword)
+      return res.status(400).json({ message: 'Current and new password are required.' })
+
+    if (
+      newPassword.length < 12 ||
+      !/[A-Z]/.test(newPassword) ||
+      !/[0-9]/.test(newPassword) ||
+      !/[^A-Za-z0-9]/.test(newPassword)
+    ) return res.status(400).json({ message: 'New password must be at least 12 characters with uppercase, number, and symbol.' })
+
+    const user = await User.findById(req.user._id)
+    if (!user) return res.status(404).json({ message: 'User not found.' })
+
+    const isMatch = await user.comparePassword(currentPassword)
+    if (!isMatch) return res.status(401).json({ message: 'Current password is incorrect.' })
+
+    user.password = newPassword   // re-hashed by the pre-save hook
+    await user.save()
+
+    return res.json({ message: 'Password changed successfully.' })
+  } catch (err) {
+    console.error('changePassword error:', err)
     return res.status(500).json({ message: 'Server error.' })
   }
 }

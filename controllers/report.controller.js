@@ -49,7 +49,8 @@ export async function getMyReports(req, res) {
   }
 }
 
-/* ── GET /api/reports/all (admin only — retrieved for admin panel lookup) ── */
+/* ── GET /api/reports/all ──
+   Admin only (enforced by protect + requireAdmin middleware on the route). */
 export async function getAllReports(req, res) {
   try {
     const reports = await Report.find()
@@ -58,6 +59,37 @@ export async function getAllReports(req, res) {
     return res.json(reports)
   } catch (err) {
     console.error('getAllReports error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── PATCH /api/reports/:id/status ──
+   Admin only — update case status: open / in-review / resolved. */
+export async function updateReportStatus(req, res) {
+  try {
+    const { status } = req.body
+    if (!['open', 'in-review', 'resolved'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status.' })
+    }
+    const report = await Report.findByIdAndUpdate(req.params.id, { status }, { new: true })
+    if (!report) return res.status(404).json({ message: 'Report not found.' })
+    return res.json(report)
+  } catch (err) {
+    console.error('updateReportStatus error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── DELETE /api/reports/:id ──
+   Admin only — permanently deletes a report. Manual action from the
+   admin panel; not tied to or triggered by a PDF download. */
+export async function deleteReport(req, res) {
+  try {
+    const deleted = await Report.findByIdAndDelete(req.params.id)
+    if (!deleted) return res.status(404).json({ message: 'Report not found.' })
+    return res.json({ message: 'Report deleted.' })
+  } catch (err) {
+    console.error('deleteReport error:', err)
     return res.status(500).json({ message: 'Server error.' })
   }
 }

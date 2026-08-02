@@ -14,3 +14,13 @@ export async function protect(req, res, next) {
     res.status(401).json({ message: 'Invalid or expired token' })
   }
 }
+
+/* Use after `protect` on any admin-only route. Single shared check so
+   every controller enforces the same rule instead of repeating
+   `if (req.user.role !== 'admin')` inline in each one. */
+export function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required.' })
+  }
+  next()
+}

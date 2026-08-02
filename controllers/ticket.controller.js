@@ -67,7 +67,8 @@ export async function getMyTickets(req, res) {
   }
 }
 
-/* ── GET /api/tickets/all (admin only — retrieved for admin panel lookup) ── */
+/* ── GET /api/tickets/all ──
+   Admin only (enforced by protect + requireAdmin middleware on the route). */
 export async function getAllTickets(req, res) {
   try {
     const tickets = await Ticket.find()
@@ -76,6 +77,37 @@ export async function getAllTickets(req, res) {
     return res.json(tickets)
   } catch (err) {
     console.error('getAllTickets error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── PATCH /api/tickets/:id/status ──
+   Admin only — update status: open / in-progress / resolved. */
+export async function updateTicketStatus(req, res) {
+  try {
+    const { status } = req.body
+    if (!['open', 'in-progress', 'resolved'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status.' })
+    }
+    const ticket = await Ticket.findByIdAndUpdate(req.params.id, { status }, { new: true })
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found.' })
+    return res.json(ticket)
+  } catch (err) {
+    console.error('updateTicketStatus error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── DELETE /api/tickets/:id ──
+   Admin only — permanently deletes a ticket. Manual action from the
+   admin panel; not tied to or triggered by a PDF download. */
+export async function deleteTicket(req, res) {
+  try {
+    const deleted = await Ticket.findByIdAndDelete(req.params.id)
+    if (!deleted) return res.status(404).json({ message: 'Ticket not found.' })
+    return res.json({ message: 'Ticket deleted.' })
+  } catch (err) {
+    console.error('deleteTicket error:', err)
     return res.status(500).json({ message: 'Server error.' })
   }
 }
