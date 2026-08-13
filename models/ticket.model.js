@@ -55,8 +55,28 @@ const ticketSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['open', 'in-progress', 'resolved'],
+    enum: ['open', 'in-progress', 'resolved', 'ended'],
     default: 'open'
+  },
+  hasHumanAgent: {
+    type: Boolean,
+    default: false
+  },
+  messageCount: {
+    type: Number,
+    default: 1
+  },
+  isReadByVisitor: {
+    type: Boolean,
+    default: true
+  },
+  closingSummary: {
+    type: String,
+    default: ''
+  },
+  lastActivityAt: {
+    type: Date,
+    default: Date.now
   }
 }, { timestamps: true })
 

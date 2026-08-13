@@ -56,10 +56,30 @@ export async function createTicket(req, res) {
   }
 }
 
+/* ── Helper: Auto-close tickets after 12 hours of inactivity ── */
+async function autoCloseInactiveTickets(tickets) {
+  const TWELVE_HOURS = 12 * 60 * 60 * 1000
+  const now = Date.now()
+
+  for (const t of tickets) {
+    if (t.status !== 'ended' && t.status !== 'resolved') {
+      const lastActive = t.lastActivityAt ? new Date(t.lastActivityAt).getTime() : new Date(t.updatedAt || t.createdAt).getTime()
+      if (now - lastActive >= TWELVE_HOURS) {
+        t.status = 'ended'
+        if (!t.closingSummary) {
+          t.closingSummary = "Due to our chat becoming inactive, I'll go ahead and end this chat session. If you still need any assistance, feel free to contact us. Thanks for reaching out."
+        }
+        await t.save()
+      }
+    }
+  }
+}
+
 /* ── GET /api/tickets/mine ── */
 export async function getMyTickets(req, res) {
   try {
     const tickets = await Ticket.find({ user: req.user._id }).sort({ createdAt: -1 })
+    await autoCloseInactiveTickets(tickets)
     return res.json(tickets)
   } catch (err) {
     console.error('getMyTickets error:', err)
@@ -74,6 +94,7 @@ export async function getAllTickets(req, res) {
     const tickets = await Ticket.find()
       .populate('user', 'firstName lastName email role')
       .sort({ createdAt: -1 })
+    await autoCloseInactiveTickets(tickets)
     return res.json(tickets)
   } catch (err) {
     console.error('getAllTickets error:', err)
@@ -82,14 +103,26 @@ export async function getAllTickets(req, res) {
 }
 
 /* ── PATCH /api/tickets/:id/status ──
-   Admin only — update status: open / in-progress / resolved. */
+   Admin only — update status: open / in-progress / resolved / ended. */
 export async function updateTicketStatus(req, res) {
   try {
-    const { status } = req.body
-    if (!['open', 'in-progress', 'resolved'].includes(status)) {
+    const { status, closingSummary, hasHumanAgent, messageCount, isReadByVisitor } = req.body
+    if (!['open', 'in-progress', 'resolved', 'ended'].includes(status)) {
       return res.status(400).json({ message: 'Invalid status.' })
     }
-    const ticket = await Ticket.findByIdAndUpdate(req.params.id, { status }, { new: true })
+
+    const updates = { status, lastActivityAt: new Date() }
+    if (closingSummary !== undefined) updates.closingSummary = closingSummary
+    if (hasHumanAgent !== undefined) updates.hasHumanAgent = hasHumanAgent
+    if (messageCount !== undefined) updates.messageCount = messageCount
+    if (isReadByVisitor !== undefined) updates.isReadByVisitor = isReadByVisitor
+
+    // Default automated closing response if status is set to ended without custom summary
+    if (status === 'ended' && !updates.closingSummary) {
+      updates.closingSummary = "Thank you for contacting WHTSIPA Active Support. If you need anything further, please reach out to us. Have a great day!"
+    }
+
+    const ticket = await Ticket.findByIdAndUpdate(req.params.id, updates, { new: true })
     if (!ticket) return res.status(404).json({ message: 'Ticket not found.' })
     return res.json(ticket)
   } catch (err) {
@@ -108,6 +141,31 @@ export async function deleteTicket(req, res) {
     return res.json({ message: 'Ticket deleted.' })
   } catch (err) {
     console.error('deleteTicket error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── PATCH /api/tickets/:id/activity ──
+   Authenticated user — updates lastActivityAt, messageCount, hasHumanAgent,
+   and isReadByVisitor during active AI/live chat sessions. */
+export async function updateTicketActivity(req, res) {
+  try {
+    const { messageCount, hasHumanAgent, isReadByVisitor } = req.body
+    const updates = { lastActivityAt: new Date() }
+    if (messageCount  !== undefined) updates.messageCount  = messageCount
+    if (hasHumanAgent !== undefined) updates.hasHumanAgent = hasHumanAgent
+    if (isReadByVisitor !== undefined) updates.isReadByVisitor = isReadByVisitor
+
+    // Only allow the ticket owner to call this
+    const ticket = await Ticket.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
+      updates,
+      { new: true }
+    )
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found or not yours.' })
+    return res.json(ticket)
+  } catch (err) {
+    console.error('updateTicketActivity error:', err)
     return res.status(500).json({ message: 'Server error.' })
   }
 }
