@@ -56,6 +56,15 @@ export async function createTicket(req, res) {
   }
 }
 
+/* Varied auto-close messages — the client specifically asked that these NOT
+   repeat the exact same line every time. One is picked at random per ticket. */
+const AUTO_CLOSE_MESSAGES = [
+  "Due to our chat becoming inactive, I'll go ahead and end this chat session. If you still need any assistance, feel free to contact us. Thanks for reaching out.",
+  "It looks like this conversation has gone quiet for a while, so I've closed it out for now. If anything's still unresolved, just start a new chat and we'll pick it back up.",
+  "Since we haven't heard back in a while, this session has been marked as closed. Feel free to reach out again anytime if you still need help.",
+  "This chat has been closed after a period of inactivity. If your issue isn't fully resolved, please don't hesitate to start a new conversation with us.",
+]
+
 /* ── Helper: Auto-close tickets after 12 hours of inactivity ── */
 async function autoCloseInactiveTickets(tickets) {
   const TWELVE_HOURS = 12 * 60 * 60 * 1000
@@ -67,7 +76,7 @@ async function autoCloseInactiveTickets(tickets) {
       if (now - lastActive >= TWELVE_HOURS) {
         t.status = 'ended'
         if (!t.closingSummary) {
-          t.closingSummary = "Due to our chat becoming inactive, I'll go ahead and end this chat session. If you still need any assistance, feel free to contact us. Thanks for reaching out."
+          t.closingSummary = AUTO_CLOSE_MESSAGES[Math.floor(Math.random() * AUTO_CLOSE_MESSAGES.length)]
         }
         await t.save()
       }
