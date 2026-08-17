@@ -156,13 +156,24 @@ export async function deleteTicket(req, res) {
 
 /* ── PATCH /api/tickets/:id/activity ──
    Authenticated user — updates lastActivityAt, messageCount, hasHumanAgent,
-   and isReadByVisitor during active AI/live chat sessions. */
+   and isReadByVisitor during active AI/live chat sessions.
+
+   IMPORTANT: lastActivityAt must only be touched by genuine activity
+   (a new message sent, or a human agent joining) — never by a passive
+   "mark as read" action. Bumping it on every read would mean simply
+   opening the chat history resets the 12-hour inactivity clock every
+   time, so a ticket could never actually reach the auto-close
+   threshold as long as anyone keeps glancing at it. */
 export async function updateTicketActivity(req, res) {
   try {
     const { messageCount, hasHumanAgent, isReadByVisitor } = req.body
-    const updates = { lastActivityAt: new Date() }
-    if (messageCount  !== undefined) updates.messageCount  = messageCount
-    if (hasHumanAgent !== undefined) updates.hasHumanAgent = hasHumanAgent
+    const updates = {}
+
+    const isGenuineActivity = messageCount !== undefined || hasHumanAgent !== undefined
+    if (isGenuineActivity) updates.lastActivityAt = new Date()
+
+    if (messageCount    !== undefined) updates.messageCount    = messageCount
+    if (hasHumanAgent   !== undefined) updates.hasHumanAgent   = hasHumanAgent
     if (isReadByVisitor !== undefined) updates.isReadByVisitor = isReadByVisitor
 
     // Only allow the ticket owner to call this
