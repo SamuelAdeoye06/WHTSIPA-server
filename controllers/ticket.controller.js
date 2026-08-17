@@ -78,6 +78,9 @@ async function autoCloseInactiveTickets(tickets) {
         if (!t.closingSummary) {
           t.closingSummary = AUTO_CLOSE_MESSAGES[Math.floor(Math.random() * AUTO_CLOSE_MESSAGES.length)]
         }
+        // The closing message is new information even if the visitor
+        // already read the conversation before it auto-closed.
+        t.isReadByVisitor = false
         await t.save()
       }
     }
@@ -129,6 +132,13 @@ export async function updateTicketStatus(req, res) {
     // Default automated closing response if status is set to ended without custom summary
     if (status === 'ended' && !updates.closingSummary) {
       updates.closingSummary = "Thank you for contacting WHTSIPA Active Support. If you need anything further, please reach out to us. Have a great day!"
+    }
+
+    // The closing message itself is new information, even if the visitor
+    // already read the conversation before it closed — so mark it unread
+    // again on close, unless the caller explicitly said otherwise above.
+    if (status === 'ended' && isReadByVisitor === undefined) {
+      updates.isReadByVisitor = false
     }
 
     const ticket = await Ticket.findByIdAndUpdate(req.params.id, updates, { new: true })
