@@ -15,7 +15,9 @@ import adminRoutes from './routes/admin.route.js'
 import geoRoutes from './routes/geo.route.js'
 
 const app = express()
+app.set('trust proxy', true)
 const isProd = process.env.NODE_ENV === 'production'
+
 
 /* ── Security headers (helmet) ── */
 app.use(helmet({
