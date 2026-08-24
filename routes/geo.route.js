@@ -7,30 +7,24 @@ const router = express.Router()
  *
  * Priority order:
  *  1. Platform-level pre-resolved country headers (Vercel, Cloudflare, AWS, etc.)
- *     These are already correctly resolved by the edge and are always accurate.
- *  2. Rightmost non-private IP in x-forwarded-for (the real client, not the CDN)
- *  3. Direct socket IP (for local dev)
- *  4. Multiple fallback IP lookup services
+ *  2. Real client IP from proxy headers (cf-connecting-ip, x-real-ip, x-forwarded-for leftmost)
+ *  3. Local dev fallback — calls IP service to detect developer's public IP
+ *  4. Fallback IP lookup services
  */
 router.get('/', async (req, res) => {
-  // ── 1. Platform-resolved country headers (most reliable on production) ──
-  // Vercel sets x-vercel-ip-country, Cloudflare sets cf-ipcountry
-  // AWS CloudFront sets cloudfront-viewer-country
+  // ── 1. Platform-resolved country headers (most reliable on production edge) ──
   const platformCountry =
     req.headers['x-vercel-ip-country'] ||
     req.headers['cf-ipcountry'] ||
     req.headers['cloudfront-viewer-country'] ||
-    req.headers['x-country-code'] || // Nginx custom header
+    req.headers['x-country-code'] ||
     null
 
   if (platformCountry && platformCountry.length === 2 && platformCountry !== 'XX') {
     return res.json({ country_code: platformCountry.toUpperCase(), source: 'platform-header' })
   }
 
-  // ── 2. Parse x-forwarded-for for the real client IP ──
-  // IMPORTANT: Take the rightmost non-private IP, not the leftmost.
-  // The leftmost can be spoofed; the rightmost is added by a trusted proxy.
-  const forwardedFor = req.headers['x-forwarded-for'] || ''
+  // ── 2. Determine real client IP address ──
   const isPrivate = (ip) =>
     !ip ||
     ip === '127.0.0.1' ||
@@ -39,14 +33,19 @@ router.get('/', async (req, res) => {
     ip.startsWith('192.168.') ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
 
-  let clientIp = null
-  if (forwardedFor) {
-    // Try rightmost non-private first (most reliable against spoofing)
-    const ips = forwardedFor.split(',').map(s => s.trim()).filter(Boolean)
-    for (let i = ips.length - 1; i >= 0; i--) {
-      if (!isPrivate(ips[i])) { clientIp = ips[i]; break }
+  // Direct headers set by edge proxies for real client IP:
+  let clientIp =
+    req.headers['cf-connecting-ip'] ||
+    req.headers['x-real-ip'] ||
+    req.headers['x-client-ip'] ||
+    null
+
+  if (!clientIp && req.headers['x-forwarded-for']) {
+    // The FIRST (leftmost) non-private IP in x-forwarded-for is the real client IP!
+    const ips = req.headers['x-forwarded-for'].split(',').map(s => s.trim()).filter(Boolean)
+    for (const ip of ips) {
+      if (!isPrivate(ip)) { clientIp = ip; break }
     }
-    // Fallback: leftmost if all were private (local dev tunnels etc.)
     if (!clientIp && ips.length > 0) clientIp = ips[0]
   }
 
@@ -54,12 +53,28 @@ router.get('/', async (req, res) => {
     clientIp = req.socket?.remoteAddress || req.ip
   }
 
-  // Skip lookup for local loopback / private network IPs
+  // ── 3. If local dev (loopback/private IP), query IP service directly for dev's public IP ──
   if (isPrivate(clientIp)) {
+    try {
+      const r = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(4000) })
+      const d = await r.json()
+      if (d.success && d.country_code) {
+        return res.json({ country_code: d.country_code, source: 'local-dev-public-ip' })
+      }
+    } catch { /* fall through */ }
+
+    try {
+      const r = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) })
+      const d = await r.json()
+      if (d.country_code) {
+        return res.json({ country_code: d.country_code, source: 'local-dev-public-ip' })
+      }
+    } catch { /* fall through */ }
+
     return res.json({ country_code: null, local: true })
   }
 
-  // ── 3. IP lookup services ──
+  // ── 4. Query IP lookup services for public client IP ──
   const endpoints = [
     async () => {
       const r = await fetch(`https://ipwho.is/${clientIp}`, { signal: AbortSignal.timeout(5000) })
