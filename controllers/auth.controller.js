@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import User from '../models/user.model.js'
+import CountrySettings from '../models/countrySettings.model.js'
 import { signToken } from '../utils/jwt.js'
 import { sendOtpEmail, sendPasswordResetEmail } from '../utils/mailer.js'
 
@@ -36,6 +37,12 @@ export async function register(req, res) {
 
     if (!firstName || !lastName || !email || !country || !phone || !password)
       return res.status(400).json({ message: 'All fields are required.' })
+
+    // Check if the country is allowed to sign up
+    const countryDoc = await CountrySettings.findOne({ code: country.toUpperCase() })
+    if (countryDoc && !countryDoc.signupAllowed) {
+      return res.status(403).json({ message: 'Registration is not available in your region.' })
+    }
 
     if (!/^[A-Za-z\s'-]+$/.test(firstName) || !/^[A-Za-z\s'-]+$/.test(lastName))
       return res.status(400).json({ message: 'Names must contain letters only.' })

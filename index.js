@@ -13,6 +13,8 @@ import bookingRoutes from './routes/booking.route.js'
 import configRoutes from './routes/config.route.js'
 import adminRoutes from './routes/admin.route.js'
 import geoRoutes from './routes/geo.route.js'
+import countriesRoutes from './routes/countries.route.js'
+import { seedCountriesIfEmpty } from './controllers/countries.controller.js'
 
 const app = express()
 app.set('trust proxy', true)
@@ -84,14 +86,15 @@ app.use(rateLimit({
 }))
 
 /* ── Routes ── */
-app.use('/api/auth',    authRoutes)
-app.use('/api/reports', reportRoutes)
-app.use('/api/contact', contactRoutes)
-app.use('/api/tickets', ticketRoutes)
-app.use('/api/booking', bookingRoutes)
-app.use('/api/config',  configRoutes)
-app.use('/api/admin',   adminRoutes)
-app.use('/api/geo',     geoRoutes)
+app.use('/api/auth',      authRoutes)
+app.use('/api/reports',   reportRoutes)
+app.use('/api/contact',   contactRoutes)
+app.use('/api/tickets',   ticketRoutes)
+app.use('/api/booking',   bookingRoutes)
+app.use('/api/config',    configRoutes)
+app.use('/api/admin',     adminRoutes)
+app.use('/api/geo',       geoRoutes)
+app.use('/api/countries', countriesRoutes)
 
 /* ── Health check ── */
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', env: process.env.NODE_ENV }))
@@ -113,8 +116,9 @@ app.use((err, _req, res, _next) => {
 
 /* ── Database + server start ── */
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log('✅ MongoDB connected')
+    await seedCountriesIfEmpty()
     app.listen(process.env.PORT || 5000, () =>
       console.log(`🚀 Server running on port ${process.env.PORT || 5000} [${process.env.NODE_ENV || 'development'}]`)
     )
