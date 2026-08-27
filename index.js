@@ -14,7 +14,9 @@ import configRoutes from './routes/config.route.js'
 import adminRoutes from './routes/admin.route.js'
 import geoRoutes from './routes/geo.route.js'
 import countriesRoutes from './routes/countries.route.js'
+import reactionsRoutes from './routes/reactions.route.js'
 import { seedCountriesIfEmpty } from './controllers/countries.controller.js'
+import { seedReactionsIfEmpty } from './controllers/reaction.controller.js'
 
 const app = express()
 app.set('trust proxy', true)
@@ -95,6 +97,7 @@ app.use('/api/config',    configRoutes)
 app.use('/api/admin',     adminRoutes)
 app.use('/api/geo',       geoRoutes)
 app.use('/api/countries', countriesRoutes)
+app.use('/api/reactions', reactionsRoutes)
 
 /* ── Health check ── */
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', env: process.env.NODE_ENV }))
@@ -119,6 +122,7 @@ mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
     console.log('✅ MongoDB connected')
     await seedCountriesIfEmpty()
+    await seedReactionsIfEmpty()
     app.listen(process.env.PORT || 5000, () =>
       console.log(`🚀 Server running on port ${process.env.PORT || 5000} [${process.env.NODE_ENV || 'development'}]`)
     )
