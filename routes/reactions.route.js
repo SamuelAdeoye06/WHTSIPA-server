@@ -9,9 +9,11 @@ import {
 
 const router = Router()
 
-// Public endpoints
+// Public endpoint for viewing counts
 router.get('/', getReactions)
-router.post('/:entityId', toggleReaction)
+
+// Signed-in users only for reacting
+router.post('/:entityId', protect, toggleReaction)
 
 // Admin endpoints
 router.get('/admin', protect, requireAdmin, getAdminReactions)

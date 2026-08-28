@@ -1,4 +1,5 @@
 import Reaction from '../models/reaction.model.js'
+import { verifyToken } from '../utils/jwt.js'
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000
 
@@ -186,7 +187,21 @@ function processDislikeQueue(doc) {
  */
 export async function getReactions(req, res) {
   try {
-    const clientKey = req.query.clientId || req.ip || 'anonymous'
+    let clientKey = null
+    const authHeader = req.headers.authorization
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const payload = verifyToken(authHeader.split(' ')[1])
+        if (payload?.id) clientKey = payload.id.toString()
+      } catch {}
+    }
+    if (!clientKey && req.query.userId) {
+      clientKey = req.query.userId
+    }
+    if (!clientKey && req.query.clientId) {
+      clientKey = req.query.clientId
+    }
+
     const reactions = await Reaction.find({})
 
     const response = {}
@@ -196,7 +211,7 @@ export async function getReactions(req, res) {
         await r.save()
       }
 
-      const userRec = (r.userRecords || []).find(rec => rec.clientKey === clientKey)
+      const userRec = clientKey ? (r.userRecords || []).find(rec => rec.clientKey === clientKey) : null
 
       response[r.entityId] = {
         entityId: r.entityId,
@@ -218,18 +233,23 @@ export async function getReactions(req, res) {
 
 /**
  * POST /api/reactions/:entityId
- * Body: { action: 'like' | 'dislike', clientId: string }
+ * Protected: requires logged-in user (req.user)
+ * Body: { action: 'like' | 'dislike' }
  */
 export async function toggleReaction(req, res) {
   try {
     const { entityId } = req.params
-    const { action, clientId } = req.body
+    const { action } = req.body
+
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ message: 'Please sign in to like or dislike.' })
+    }
 
     if (!action || !['like', 'dislike'].includes(action)) {
       return res.status(400).json({ message: 'Invalid action. Must be like or dislike.' })
     }
 
-    const clientKey = clientId || req.ip || 'anonymous'
+    const clientKey = req.user._id.toString()
 
     let reaction = await Reaction.findOne({ entityId: entityId.toLowerCase() })
     if (!reaction) {
