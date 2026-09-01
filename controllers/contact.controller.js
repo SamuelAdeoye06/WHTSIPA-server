@@ -16,7 +16,8 @@ export async function submitContact(req, res) {
     const contact = await Contact.create({ name, email, subject, message })
 
     // Email notification (fire-and-forget — don't block the response)
-    sendContactNotification({ name, email, subject, message }).catch(err =>
+    const panelLink = `${process.env.CLIENT_URL}/admin/contact-messages/${contact._id}`
+    sendContactNotification({ name, email, subject, message, panelLink }).catch(err =>
       console.error('Contact email notification failed:', err)
     )
 

@@ -10,6 +10,9 @@ const adminConfigSchema = new mongoose.Schema({
   findUsTelegramLink:       { type: String, default: 'https://t.me/WHTSIPADigitalSecurityWorld' },
   whatsappLink:             { type: String, default: 'https://wa.me/16502184673' },
   supportEmail:             { type: String, default: 'support@whtsipa.com' },
+  // Address that receives internal "new submission" notifications.
+  // Empty string = fall back to process.env.MAIL_USER (see mailer.js).
+  notificationEmail:        { type: String, default: '' },
 }, { timestamps: true })
 
 export default mongoose.model('AdminConfig', adminConfigSchema)

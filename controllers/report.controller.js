@@ -25,7 +25,8 @@ export async function submitReport(req, res) {
     })
 
     // Fire admin notification email (non-blocking)
-    sendReportNotification({ fullName, email, reportType, incidentType, phone, country })
+    const panelLink = `${process.env.CLIENT_URL}/admin/reports/${report._id}`
+    sendReportNotification({ fullName, email, reportType, incidentType, panelLink })
       .catch(err => console.error('Report email notification failed:', err))
 
     return res.status(201).json({

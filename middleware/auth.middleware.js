@@ -9,6 +9,9 @@ export async function protect(req, res, next) {
     const payload = verifyToken(token)
     req.user = await User.findById(payload.id).select('-password')
     if (!req.user) return res.status(401).json({ message: 'User not found' })
+    if (req.user.isRestricted) {
+      return res.status(403).json({ message: 'This account has been restricted. Please contact support for assistance.' })
+    }
     next()
   } catch {
     res.status(401).json({ message: 'Invalid or expired token' })

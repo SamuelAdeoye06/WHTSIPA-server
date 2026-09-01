@@ -15,6 +15,7 @@ import adminRoutes from './routes/admin.route.js'
 import geoRoutes from './routes/geo.route.js'
 import countriesRoutes from './routes/countries.route.js'
 import reactionsRoutes from './routes/reactions.route.js'
+import uploadRoutes from './routes/upload.route.js'
 import { seedCountriesIfEmpty } from './controllers/countries.controller.js'
 import { seedReactionsIfEmpty } from './controllers/reaction.controller.js'
 
@@ -98,6 +99,7 @@ app.use('/api/admin',     adminRoutes)
 app.use('/api/geo',       geoRoutes)
 app.use('/api/countries', countriesRoutes)
 app.use('/api/reactions', reactionsRoutes)
+app.use('/api/uploads',   uploadRoutes)
 
 /* ── Health check ── */
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', env: process.env.NODE_ENV }))

@@ -1,6 +1,43 @@
 import { Resend } from 'resend'
+import AdminConfig from '../models/adminConfig.model.js'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+/* ── Where "new submission" notifications go ──
+   Admin-configurable via the notification-bell settings page.
+   Falls back to MAIL_USER if nothing has been set. */
+async function getNotificationInbox() {
+  try {
+    const config = await AdminConfig.findOne({ key: 'main' })
+    return (config?.notificationEmail && config.notificationEmail.trim()) || process.env.MAIL_USER
+  } catch (err) {
+    console.error('getNotificationInbox error, falling back to MAIL_USER:', err)
+    return process.env.MAIL_USER
+  }
+}
+
+/* ── Shared "go check the panel" notification template ──
+   Deliberately carries ZERO submitted content — no names, no message
+   bodies, no contact details. Just what came in and a link to it.
+   This is separate from the manual "Send to Email" action below,
+   which an admin triggers on purpose and does carry full content. */
+function notificationHtml({ heading, bodyLine, panelLink }) {
+  return `
+    <div style="font-family:sans-serif;max-width:480px;margin:auto">
+      <h2 style="color:#0f172a;border-bottom:2px solid #0d9488;padding-bottom:0.5rem">
+        ${heading}
+      </h2>
+      <p style="color:#374151;line-height:1.6">${bodyLine}</p>
+      ${panelLink ? `
+        <a href="${panelLink}" style="display:inline-block;background:#0d9488;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:700;margin:14px 0">
+          Open in Admin Panel
+        </a>` : ''}
+      <p style="color:#9ca3af;font-size:0.78rem;margin-top:1.5rem">
+        This is an automatic notification. No submitted details are included here — sign in to the panel to view them.
+      </p>
+    </div>
+  `
+}
 
 /* ── Shared sender ── */
 async function send({ to, subject, html, text, replyTo }) {
@@ -79,76 +116,35 @@ export async function sendPasswordResetEmail(to, token) {
   })
 }
 
-export async function sendContactNotification({ name, email, subject, message }) {
-  const SUPPORT_INBOX = process.env.MAIL_USER
+export async function sendContactNotification({ name, email, subject, message, panelLink }) {
+  const inbox = await getNotificationInbox()
 
-  // Send admin notification
+  // Internal notification — zero submitted content, just a heads-up + link.
   await send({
-    to: SUPPORT_INBOX,
-    replyTo: email,
-    subject: `[WHTS Contact] ${subject}`,
-    html: `
-      <div style="font-family:sans-serif;max-width:560px;margin:auto">
-        <h2 style="color:#0f172a;border-bottom:2px solid #0d9488;padding-bottom:0.5rem">
-          New Contact Message
-        </h2>
-        <table style="width:100%;border-collapse:collapse;margin:1rem 0">
-          <tr>
-            <td style="padding:8px 0;color:#6b7280;font-size:0.85rem;width:90px">From</td>
-            <td style="padding:8px 0;color:#0f172a;font-weight:600">${name}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;color:#6b7280;font-size:0.85rem">Email</td>
-            <td style="padding:8px 0"><a href="mailto:${email}" style="color:#0d9488">${email}</a></td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;color:#6b7280;font-size:0.85rem">Subject</td>
-            <td style="padding:8px 0;color:#0f172a">${subject}</td>
-          </tr>
-        </table>
-        <div style="background:#f8fafc;border-left:4px solid #0d9488;padding:1rem 1.25rem;border-radius:4px;margin:1rem 0">
-          <div style="color:#6b7280;font-size:0.8rem;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.05em">Message</div>
-          <p style="color:#0f172a;line-height:1.7;margin:0;white-space:pre-wrap">${message}</p>
-        </div>
-      </div>
-    `,
+    to: inbox,
+    subject: `[WHTS Contact] A new contact message came in`,
+    html: notificationHtml({
+      heading: 'New Contact Message',
+      bodyLine: 'A new contact message came in. Go check the panel for the details.',
+      panelLink,
+    }),
   })
 
-  // Send plain text confirmation receipt to client
+  // Plain text confirmation receipt to the client (unrelated to the admin notification)
   await sendSubmissionReceiptEmail(email, name, 'contact message')
 }
 
-export async function sendReportNotification({ fullName, email, reportType, incidentType, phone, country }) {
-  const SUPPORT_INBOX = process.env.MAIL_USER
+export async function sendReportNotification({ fullName, email, reportType, incidentType, panelLink }) {
+  const inbox = await getNotificationInbox()
 
   await send({
-    to: SUPPORT_INBOX,
-    subject: `[WHTSIPA Report] New ${reportType} incident — ${incidentType}`,
-    html: `
-      <div style="font-family:sans-serif;max-width:560px;margin:auto">
-        <h2 style="color:#0f172a;border-bottom:2px solid #dc2626;padding-bottom:0.5rem">
-          🚨 New Incident Report Submitted
-        </h2>
-        <table style="width:100%;border-collapse:collapse;margin:1rem 0">
-          <tr>
-            <td style="padding:8px 0;color:#6b7280;font-size:0.85rem;width:130px">Report Type</td>
-            <td style="padding:8px 0;color:#0f172a;font-weight:600;text-transform:capitalize">${reportType}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;color:#6b7280;font-size:0.85rem">Incident Type</td>
-            <td style="padding:8px 0;color:#dc2626;font-weight:600">${incidentType}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;color:#6b7280;font-size:0.85rem">Reporter Name</td>
-            <td style="padding:8px 0;color:#0f172a">${fullName}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;color:#6b7280;font-size:0.85rem">Email</td>
-            <td style="padding:8px 0"><a href="mailto:${email}" style="color:#0d9488">${email}</a></td>
-          </tr>
-        </table>
-      </div>
-    `,
+    to: inbox,
+    subject: `[WHTSIPA Report] A new ${reportType} incident report came in`,
+    html: notificationHtml({
+      heading: '🚨 New Incident Report Submitted',
+      bodyLine: `A new ${reportType} incident report came in. Go check the panel for the details.`,
+      panelLink,
+    }),
   })
 
   if (email) {
@@ -156,34 +152,51 @@ export async function sendReportNotification({ fullName, email, reportType, inci
   }
 }
 
-export async function sendBookingNotification({ name, email, phone, preferredDate, preferredTime, notes }) {
+export async function sendBookingNotification({ name, email, panelLink }) {
+  const inbox = await getNotificationInbox()
+
   await send({
-    to: process.env.MAIL_USER,
-    subject: `📞 New Call Session Booked — ${name}`,
-    html: `
-      <div style="font-family:sans-serif;max-width:560px;margin:auto">
-        <h2 style="color:#0f172a;border-bottom:2px solid #1d4ed8;padding-bottom:0.75rem">
-          📞 New Call Session Booking
-        </h2>
-        <table style="width:100%;border-collapse:collapse;margin:1rem 0">
-          <tr>
-            <td style="padding:8px 0;color:#6b7280;font-size:0.85rem;width:130px">Name</td>
-            <td style="padding:8px 0;color:#0f172a;font-weight:600">${name}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;color:#6b7280;font-size:0.85rem">Email</td>
-            <td style="padding:8px 0">${email}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;color:#6b7280;font-size:0.85rem">Date / Time</td>
-            <td style="padding:8px 0;color:#0f172a">${preferredDate} at ${preferredTime}</td>
-          </tr>
-        </table>
-      </div>
-    `,
+    to: inbox,
+    subject: `📞 A new call session booking came in`,
+    html: notificationHtml({
+      heading: '📞 New Call Session Booking',
+      bodyLine: 'A new call session booking came in. Go check the panel for the details.',
+      panelLink,
+    }),
   })
 
   if (email) {
     await sendSubmissionReceiptEmail(email, name, 'call session booking')
   }
+}
+
+/* ── Manual "Send to Email" action ──
+   Deliberate admin choice, separate from the automatic notifications
+   above. Carries the FULL record content, laid out in a boxed/grid
+   HTML table — never as a PDF (PDF stays admin-panel-download only). */
+export async function sendRecordEmail({ to, title, fields }) {
+  const rows = fields
+    .filter(f => f.value !== undefined && f.value !== null && f.value !== '')
+    .map(f => `
+      <tr>
+        <td style="padding:10px 14px;color:#6b7280;font-size:0.82rem;width:180px;border-bottom:1px solid #e5e7eb;vertical-align:top">${f.label}</td>
+        <td style="padding:10px 14px;color:#0f172a;font-size:0.92rem;border-bottom:1px solid #e5e7eb;white-space:pre-wrap">${f.value}</td>
+      </tr>
+    `).join('')
+
+  await send({
+    to,
+    subject: `[WHTSIPA] ${title}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:640px;margin:auto">
+        <h2 style="color:#0f172a;border-bottom:2px solid #0d9488;padding-bottom:0.5rem">${title}</h2>
+        <table style="width:100%;border-collapse:collapse;margin:1rem 0;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden">
+          ${rows}
+        </table>
+        <p style="color:#9ca3af;font-size:0.78rem;margin-top:1.25rem">
+          Sent manually from the WHTSIPA admin panel.
+        </p>
+      </div>
+    `,
+  })
 }

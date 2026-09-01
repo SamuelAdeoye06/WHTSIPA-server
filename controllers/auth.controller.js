@@ -200,6 +200,9 @@ export async function login(req, res) {
     if (!user.isVerified)
       return res.status(403).json({ message: 'Please verify your email before signing in.' })
 
+    if (user.isRestricted)
+      return res.status(403).json({ message: 'This account has been restricted. Please contact support for assistance.' })
+
     const token = signToken({ id: user._id })
 
     return res.json({

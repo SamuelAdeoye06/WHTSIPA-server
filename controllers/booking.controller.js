@@ -66,7 +66,8 @@ export async function submitBooking(req, res) {
     const callbackNumber = config?.callbackNumber || FALLBACK_CALLBACK_NUMBER
 
     // Fire admin notification email (non-blocking)
-    sendBookingNotification({ name, email, phone, preferredDate, preferredTime, notes })
+    const panelLink = `${process.env.CLIENT_URL}/admin/bookings/${session._id}`
+    sendBookingNotification({ name, email, panelLink })
       .catch(err => console.error('Booking email notification failed:', err))
 
     return res.status(201).json({
