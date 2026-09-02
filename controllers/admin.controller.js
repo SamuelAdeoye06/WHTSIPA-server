@@ -3,6 +3,7 @@ import Report from '../models/report.model.js'
 import Ticket from '../models/ticket.model.js'
 import Contact from '../models/contact.model.js'
 import BookingSession from '../models/bookingSession.model.js'
+import AdminConfig from '../models/adminConfig.model.js'
 import { sendRecordEmail } from '../utils/mailer.js'
 
 /* Field labels per record type — mirrors what the admin detail pages show.
@@ -177,5 +178,138 @@ export async function deleteUser(req, res) {
   } catch (err) {
     console.error('deleteUser error:', err)
     return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Page-scoped contact "workers" — Threats page & Contact page
+   Each page-context keeps its own worker list; exactly one worker
+   per context is "active" (i.e. actually shown to site visitors).
+   Adding/removing/editing workers never changes what's live on the
+   public page — only "set active" does that.
+   ══════════════════════════════════════════════════════════ */
+
+const WORKER_CONTEXTS = {
+  threats: { listField: 'threatsPageWorkers', activeField: 'activeThreatsWorkerId' },
+  contact: { listField: 'contactPageWorkers', activeField: 'activeContactWorkerId' },
+}
+
+function resolveContext(context, res) {
+  const fields = WORKER_CONTEXTS[context]
+  if (!fields) {
+    res.status(400).json({ message: `Unknown page context "${context}".` })
+    return null
+  }
+  return fields
+}
+
+/* POST /api/admin/config/:context/workers */
+export async function addWorker(req, res) {
+  try {
+    const fields = resolveContext(req.params.context, res)
+    if (!fields) return
+
+    const { name, whatsapp, telegramHandle, email } = req.body
+    if (!name?.trim()) {
+      return res.status(400).json({ message: 'A name is required for the worker.' })
+    }
+
+    const config = await AdminConfig.findOne({ key: 'main' }) || await AdminConfig.create({ key: 'main' })
+    const list = config[fields.listField]
+    list.push({ name: name.trim(), whatsapp: whatsapp?.trim() || '', telegramHandle: telegramHandle?.trim() || '', email: email?.trim() || '' })
+
+    // First worker added to an empty list becomes active automatically.
+    if (list.length === 1) {
+      config[fields.activeField] = list[0]._id.toString()
+    }
+
+    await config.save()
+    return res.status(201).json(config)
+  } catch (err) {
+    console.error('addWorker error:', err)
+    return res.status(500).json({ message: 'Could not add this worker. Please try again.' })
+  }
+}
+
+/* PUT /api/admin/config/:context/workers/:workerId */
+export async function updateWorker(req, res) {
+  try {
+    const fields = resolveContext(req.params.context, res)
+    if (!fields) return
+
+    const { name, whatsapp, telegramHandle, email } = req.body
+    if (!name?.trim()) {
+      return res.status(400).json({ message: 'A name is required for the worker.' })
+    }
+
+    const config = await AdminConfig.findOne({ key: 'main' })
+    if (!config) return res.status(404).json({ message: 'Configuration not found.' })
+
+    const worker = config[fields.listField].id(req.params.workerId)
+    if (!worker) return res.status(404).json({ message: 'Worker not found.' })
+
+    worker.name           = name.trim()
+    worker.whatsapp       = whatsapp?.trim() || ''
+    worker.telegramHandle = telegramHandle?.trim() || ''
+    worker.email          = email?.trim() || ''
+
+    await config.save()
+    return res.json(config)
+  } catch (err) {
+    console.error('updateWorker error:', err)
+    return res.status(500).json({ message: 'Could not update this worker. Please try again.' })
+  }
+}
+
+/* DELETE /api/admin/config/:context/workers/:workerId */
+export async function deleteWorker(req, res) {
+  try {
+    const fields = resolveContext(req.params.context, res)
+    if (!fields) return
+
+    const config = await AdminConfig.findOne({ key: 'main' })
+    if (!config) return res.status(404).json({ message: 'Configuration not found.' })
+
+    const list = config[fields.listField]
+    const worker = list.id(req.params.workerId)
+    if (!worker) return res.status(404).json({ message: 'Worker not found.' })
+
+    const wasActive = config[fields.activeField] === req.params.workerId
+    worker.deleteOne()
+
+    // Never leave a page with no active worker while others still exist —
+    // fall back to whichever worker is now first in the list.
+    if (wasActive) {
+      config[fields.activeField] = list.length > 0 ? list[0]._id.toString() : ''
+    }
+
+    await config.save()
+    return res.json(config)
+  } catch (err) {
+    console.error('deleteWorker error:', err)
+    return res.status(500).json({ message: 'Could not remove this worker. Please try again.' })
+  }
+}
+
+/* PATCH /api/admin/config/:context/active-worker  { workerId } */
+export async function setActiveWorker(req, res) {
+  try {
+    const fields = resolveContext(req.params.context, res)
+    if (!fields) return
+
+    const { workerId } = req.body
+    const config = await AdminConfig.findOne({ key: 'main' })
+    if (!config) return res.status(404).json({ message: 'Configuration not found.' })
+
+    if (!config[fields.listField].id(workerId)) {
+      return res.status(404).json({ message: 'Worker not found.' })
+    }
+
+    config[fields.activeField] = workerId
+    await config.save()
+    return res.json(config)
+  } catch (err) {
+    console.error('setActiveWorker error:', err)
+    return res.status(500).json({ message: 'Could not switch the active worker. Please try again.' })
   }
 }
