@@ -4,7 +4,7 @@ import Ticket from '../models/ticket.model.js'
 import Contact from '../models/contact.model.js'
 import BookingSession from '../models/bookingSession.model.js'
 import AdminConfig from '../models/adminConfig.model.js'
-import { sendRecordEmail } from '../utils/mailer.js'
+import { sendRecordEmail, sendAttachmentEmail } from '../utils/mailer.js'
 
 /* Field labels per record type — mirrors what the admin detail pages show.
    Keep in sync with FIELD_LABELS in the corresponding *Detail.jsx files. */
@@ -311,5 +311,45 @@ export async function setActiveWorker(req, res) {
   } catch (err) {
     console.error('setActiveWorker error:', err)
     return res.status(500).json({ message: 'Could not switch the active worker. Please try again.' })
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Attachment handling (Batch 5)
+   ══════════════════════════════════════════════════════════ */
+
+/* POST /api/admin/send-attachment  { url, to }
+   Emails an evidence file as a real attachment. Only ever called from
+   inside the admin's attachment preview modal — see AttachmentViewer.jsx —
+   so by the time this fires, the admin has already viewed the file. */
+export async function sendAttachmentToEmail(req, res) {
+  try {
+    const { url, to } = req.body
+
+    if (!to?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())) {
+      return res.status(400).json({ message: 'Enter a valid recipient email address.' })
+    }
+
+    // Only ever fetch files from our own Cloudinary account — this endpoint
+    // does a server-side fetch of an admin-supplied URL, so without this
+    // check it would be an open SSRF proxy for any URL an admin account
+    // (or a compromised admin session) could submit.
+    let parsed
+    try {
+      parsed = new URL(url)
+    } catch {
+      return res.status(400).json({ message: 'Invalid file URL.' })
+    }
+    if (parsed.hostname !== 'res.cloudinary.com') {
+      return res.status(400).json({ message: 'This file is not hosted on our storage — refusing to fetch it.' })
+    }
+
+    const fileName = decodeURIComponent(parsed.pathname.split('/').pop() || 'attachment')
+
+    await sendAttachmentEmail({ to: to.trim(), fileUrl: url, fileName })
+    return res.json({ message: 'Sent.' })
+  } catch (err) {
+    console.error('sendAttachmentToEmail error:', err)
+    return res.status(500).json({ message: 'Could not send this attachment. Please try again.' })
   }
 }

@@ -40,7 +40,7 @@ function notificationHtml({ heading, bodyLine, panelLink }) {
 }
 
 /* ── Shared sender ── */
-async function send({ to, subject, html, text, replyTo }) {
+async function send({ to, subject, html, text, replyTo, attachments }) {
   const payload = {
     from:    process.env.MAIL_FROM,
     to,
@@ -48,6 +48,7 @@ async function send({ to, subject, html, text, replyTo }) {
     ...(html ? { html } : {}),
     ...(text ? { text } : {}),
     ...(replyTo ? { replyTo } : {}),
+    ...(attachments ? { attachments } : {}),
   }
 
   const { data, error } = await resend.emails.send(payload)
@@ -198,5 +199,36 @@ export async function sendRecordEmail({ to, title, fields }) {
         </p>
       </div>
     `,
+  })
+}
+
+/* ── Manual "Email as Attachment" action (Batch 5) ──
+   Sends an evidence file as a REAL email attachment — never embedded in
+   or converted to a PDF. Admin triggers this from inside the attachment
+   preview modal, after having already viewed the file (see AttachmentViewer.jsx),
+   so this is never reachable as a blind, unreviewed download/send. */
+export async function sendAttachmentEmail({ to, fileUrl, fileName }) {
+  const fileRes = await fetch(fileUrl)
+  if (!fileRes.ok) {
+    throw new Error(`Could not retrieve the file from storage (status ${fileRes.status}).`)
+  }
+  const buffer = Buffer.from(await fileRes.arrayBuffer())
+
+  await send({
+    to,
+    subject: `[WHTSIPA] Attachment: ${fileName}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2 style="color:#0f172a;border-bottom:2px solid #0d9488;padding-bottom:0.5rem">Attachment Shared</h2>
+        <p style="color:#374151;line-height:1.6">
+          An evidence file has been shared with you from the WHTSIPA admin panel: <strong>${fileName}</strong>.
+          It's attached to this email as the original file — not a PDF conversion.
+        </p>
+        <p style="color:#9ca3af;font-size:0.78rem;margin-top:1.5rem">
+          Sent manually from the WHTSIPA admin panel.
+        </p>
+      </div>
+    `,
+    attachments: [{ filename: fileName, content: buffer.toString('base64') }],
   })
 }
