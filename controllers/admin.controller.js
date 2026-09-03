@@ -192,6 +192,7 @@ export async function deleteUser(req, res) {
 const WORKER_CONTEXTS = {
   threats: { listField: 'threatsPageWorkers', activeField: 'activeThreatsWorkerId' },
   contact: { listField: 'contactPageWorkers', activeField: 'activeContactWorkerId' },
+  hire:    { listField: 'hirePageWorkers',    activeField: 'activeHirePageWorkerId' },
 }
 
 function resolveContext(context, res) {

@@ -19,6 +19,15 @@ const CONTACT_SEED_WORKER = {
   email: 'wehelptrackscammersipaddress@mail.com',
 }
 
+// Was hardcoded in WhatsipModal.jsx's "Connect With Our Experts" /
+// "Reach Us Instantly" quick-connect menu before Batch 4.
+const HIRE_SEED_WORKER = {
+  name: 'WHTSIPA Experts Team',
+  whatsapp: '19293816441',
+  telegramHandle: 'WHTSIPA_DigitalTools',
+  email: 'support@whtsipa.com',
+}
+
 export const getConfig = async (req, res) => {
   try {
     let config = await AdminConfig.findOne({ key: 'main' })
@@ -39,6 +48,11 @@ export const getConfig = async (req, res) => {
       config.activeContactWorkerId = config.contactPageWorkers[0]._id.toString()
       needsSave = true
     }
+    if (config.hirePageWorkers.length === 0) {
+      config.hirePageWorkers.push(HIRE_SEED_WORKER)
+      config.activeHirePageWorkerId = config.hirePageWorkers[0]._id.toString()
+      needsSave = true
+    }
     if (needsSave) await config.save()
 
     return res.status(200).json(config)
@@ -56,6 +70,7 @@ export const updateConfig = async (req, res) => {
     const {
       threatsPageWorkers, activeThreatsWorkerId,
       contactPageWorkers, activeContactWorkerId,
+      hirePageWorkers, activeHirePageWorkerId,
       ...safeUpdates
     } = req.body
 

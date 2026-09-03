@@ -20,7 +20,12 @@ import { seedCountriesIfEmpty } from './controllers/countries.controller.js'
 import { seedReactionsIfEmpty } from './controllers/reaction.controller.js'
 
 const app = express()
-app.set('trust proxy', true)
+// Trust exactly one hop — Render's own reverse proxy sits directly in front
+// of this app. `true` (the previous setting) trusts the ENTIRE X-Forwarded-For
+// chain, which a client can freely spoof to make every request look like it's
+// from a different IP, defeating IP-based rate limiting below. `1` trusts only
+// the IP Render itself appends, which can't be forged by the client.
+app.set('trust proxy', 1)
 const isProd = process.env.NODE_ENV === 'production'
 
 

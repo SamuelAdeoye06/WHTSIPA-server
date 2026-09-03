@@ -38,6 +38,16 @@ const adminConfigSchema = new mongoose.Schema({
   contactPageWorkers:    { type: [workerSchema], default: [] },
   activeContactWorkerId: { type: String, default: '' },
 
+  /* ── "Hire Our Team" / "Reach Us Instantly" quick-connect menu ──
+     Shown from the WhatsipModal picker (Threats page "Hire Our Team" and
+     "Reach Us Instantly" flows). Same one-active-worker model. */
+  hirePageWorkers:           { type: [workerSchema], default: [] },
+  activeHirePageWorkerId:    { type: String, default: '' },
+
+  /* ── "Request Security Tools" modal (Threats page) ──
+     Just a Telegram link — no per-worker split requested for this one. */
+  toolsTelegramLink: { type: String, default: 'https://t.me/WHTSIPA_DigitalTools' },
+
   /* ── Internal admin notifications (not public-facing) ──
      Address that receives "new submission" alerts. Empty string =
      fall back to process.env.MAIL_USER (see mailer.js). */
