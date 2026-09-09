@@ -55,7 +55,14 @@ export const getConfig = async (req, res) => {
     }
     if (needsSave) await config.save()
 
-    return res.status(200).json(config)
+    // getConfig is a PUBLIC route (Footer, Navbar, Threats/Contact pages all
+    // read from it unauthenticated) — notificationEmail is an internal admin
+    // setting and must never leave this response. Worker whatsapp/telegram/
+    // email fields are fine; those are meant to be shown to visitors.
+    const publicConfig = config.toObject()
+    delete publicConfig.notificationEmail
+
+    return res.status(200).json(publicConfig)
   } catch (error) {
     return res.status(500).json({ message: 'Error fetching configuration', error: error.message })
   }

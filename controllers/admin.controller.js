@@ -354,3 +354,17 @@ export async function sendAttachmentToEmail(req, res) {
     return res.status(500).json({ message: 'Could not send this attachment. Please try again.' })
   }
 }
+
+/* GET /api/admin/config — admin-only, full config including notificationEmail.
+   The public GET /api/config (config.controller.js) strips notificationEmail
+   before responding since that route is unauthenticated; the admin Settings
+   page needs the real value to display, so it uses this route instead. */
+export async function getFullConfig(req, res) {
+  try {
+    const config = await AdminConfig.findOne({ key: 'main' }) || await AdminConfig.create({ key: 'main' })
+    return res.json(config)
+  } catch (err) {
+    console.error('getFullConfig error:', err)
+    return res.status(500).json({ message: 'Could not load settings.' })
+  }
+}
