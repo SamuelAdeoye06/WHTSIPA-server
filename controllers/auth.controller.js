@@ -229,12 +229,20 @@ export async function login(req, res) {
    rules" the client asked for, scoped only to role: 'admin'. Every token
    carries tokenVersion so a password change or "log out all sessions"
    can invalidate it instantly (see auth.middleware.js). */
+/* Must match GRACE_PERIOD_SECONDS in WHTS-client/src/pages/admin/components/AdminIdleWarning.jsx.
+   The client shows its "are you still there?" warning right at adminSessionSeconds
+   of inactivity, then counts down this many more seconds waiting for a response.
+   The actual token needs to stay valid through that whole window — otherwise
+   clicking "Yes, Stay Logged In" sends a request with an already-expired token,
+   which 401s and force-logs-out regardless of what the button was supposed to do. */
+const ADMIN_GRACE_PERIOD_SECONDS = 15
+
 export async function signAuthToken(user) {
   if (user.role !== 'admin') {
     return signToken({ id: user._id, tokenVersion: user.tokenVersion })
   }
   const config = await AdminConfig.findOne({ key: 'main' })
-  const seconds = config?.adminSessionSeconds || 30
+  const seconds = (config?.adminSessionSeconds || 30) + ADMIN_GRACE_PERIOD_SECONDS
   return signToken({ id: user._id, tokenVersion: user.tokenVersion }, { expiresIn: `${seconds}s` })
 }
 
