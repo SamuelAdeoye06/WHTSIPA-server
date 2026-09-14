@@ -13,7 +13,7 @@ export async function submitContact(req, res) {
       return res.status(400).json({ message: 'Enter a valid email address.' })
 
     // Save to DB
-    const contact = await Contact.create({ name, email, subject, message })
+    const contact = await Contact.create({ user: req.user._id, name, email, subject, message })
 
     // Email notification (fire-and-forget — don't block the response)
     const panelLink = `${process.env.CLIENT_URL}/admin/contact-messages/${contact._id}`

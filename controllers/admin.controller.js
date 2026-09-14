@@ -162,10 +162,13 @@ export async function setUserRestriction(req, res) {
 }
 
 /* ── DELETE /api/admin/users/:id ──
-   Admin only — permanently deletes a user's account.
-   Deliberately does NOT cascade-delete their reports/tickets/bookings —
-   those may still be needed (e.g. handed to law enforcement) even after
-   the account itself is gone. Only the account record is removed. */
+   Admin only — permanently deletes a user's account AND everything
+   linked to it: Reports, Tickets, Bookings, and Contact messages.
+   This is the real "Delete" behavior the client asked for — Restrict
+   is the "soft" version that keeps all data and just blocks login.
+   Contact messages submitted before the `user` field existed on that
+   model won't have a link to cascade from; there's no reliable way to
+   retroactively match those by email alone, so they're left as-is. */
 export async function deleteUser(req, res) {
   try {
     if (req.params.id === String(req.user._id)) {
@@ -174,7 +177,23 @@ export async function deleteUser(req, res) {
 
     const deleted = await User.findByIdAndDelete(req.params.id)
     if (!deleted) return res.status(404).json({ message: 'User not found.' })
-    return res.json({ message: 'User account deleted.' })
+
+    const [reports, tickets, bookings, contacts] = await Promise.all([
+      Report.deleteMany({ user: deleted._id }),
+      Ticket.deleteMany({ user: deleted._id }),
+      BookingSession.deleteMany({ user: deleted._id }),
+      Contact.deleteMany({ user: deleted._id }),
+    ])
+
+    return res.json({
+      message: 'User account and all linked data permanently deleted.',
+      deleted: {
+        reports: reports.deletedCount,
+        tickets: tickets.deletedCount,
+        bookings: bookings.deletedCount,
+        contactMessages: contacts.deletedCount,
+      },
+    })
   } catch (err) {
     console.error('deleteUser error:', err)
     return res.status(500).json({ message: 'Server error.' })
@@ -210,14 +229,14 @@ export async function addWorker(req, res) {
     const fields = resolveContext(req.params.context, res)
     if (!fields) return
 
-    const { name, whatsapp, telegramHandle, email } = req.body
+    const { name, whatsapp, telegramHandle, email, phone } = req.body
     if (!name?.trim()) {
       return res.status(400).json({ message: 'A name is required for the worker.' })
     }
 
     const config = await AdminConfig.findOne({ key: 'main' }) || await AdminConfig.create({ key: 'main' })
     const list = config[fields.listField]
-    list.push({ name: name.trim(), whatsapp: whatsapp?.trim() || '', telegramHandle: telegramHandle?.trim() || '', email: email?.trim() || '' })
+    list.push({ name: name.trim(), whatsapp: whatsapp?.trim() || '', telegramHandle: telegramHandle?.trim() || '', email: email?.trim() || '', phone: phone?.trim() || '' })
 
     // First worker added to an empty list becomes active automatically.
     if (list.length === 1) {
@@ -238,7 +257,7 @@ export async function updateWorker(req, res) {
     const fields = resolveContext(req.params.context, res)
     if (!fields) return
 
-    const { name, whatsapp, telegramHandle, email } = req.body
+    const { name, whatsapp, telegramHandle, email, phone } = req.body
     if (!name?.trim()) {
       return res.status(400).json({ message: 'A name is required for the worker.' })
     }
@@ -253,6 +272,7 @@ export async function updateWorker(req, res) {
     worker.whatsapp       = whatsapp?.trim() || ''
     worker.telegramHandle = telegramHandle?.trim() || ''
     worker.email          = email?.trim() || ''
+    worker.phone          = phone?.trim() || ''
 
     await config.save()
     return res.json(config)

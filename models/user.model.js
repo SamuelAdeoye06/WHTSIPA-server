@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema({
   resetExpiry:  { type: Date },
   role:         { type: String, enum: ['user', 'admin'], default: 'user' },
   isRestricted: { type: Boolean, default: false },
+  // Bumped on password change or "log out all sessions" — any JWT issued
+  // before the bump carries the old value and gets rejected by protect
+  // middleware, effectively invalidating every session at once.
+  tokenVersion: { type: Number, default: 0 },
 }, { timestamps: true })
 
 // Hash password before save

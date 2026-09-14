@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import User from '../models/user.model.js'
 import CountrySettings from '../models/countrySettings.model.js'
+import AdminConfig from '../models/adminConfig.model.js'
 import { signToken } from '../utils/jwt.js'
 import { sendOtpEmail, sendPasswordResetEmail } from '../utils/mailer.js'
 
@@ -203,7 +204,7 @@ export async function login(req, res) {
     if (user.isRestricted)
       return res.status(403).json({ message: 'This account has been restricted. Please contact support for assistance.' })
 
-    const token = signToken({ id: user._id })
+    const token = await signAuthToken(user)
 
     return res.json({
       token,
@@ -220,6 +221,21 @@ export async function login(req, res) {
     console.error('login error:', err)
     return res.status(500).json({ message: 'Server error.' })
   }
+}
+
+/* Signs a token for this user. Admin accounts get a short, admin-
+   configurable expiry (see AdminConfig.adminSessionSeconds) instead of
+   the normal long-lived user session — this is the "admin panel session
+   rules" the client asked for, scoped only to role: 'admin'. Every token
+   carries tokenVersion so a password change or "log out all sessions"
+   can invalidate it instantly (see auth.middleware.js). */
+export async function signAuthToken(user) {
+  if (user.role !== 'admin') {
+    return signToken({ id: user._id, tokenVersion: user.tokenVersion })
+  }
+  const config = await AdminConfig.findOne({ key: 'main' })
+  const seconds = config?.adminSessionSeconds || 30
+  return signToken({ id: user._id, tokenVersion: user.tokenVersion }, { expiresIn: `${seconds}s` })
 }
 
 /* ── GET /api/auth/me ── */
@@ -315,11 +331,38 @@ export async function changePassword(req, res) {
     if (!isMatch) return res.status(401).json({ message: 'Current password is incorrect.' })
 
     user.password = newPassword   // re-hashed by the pre-save hook
+    // Bump tokenVersion so every OTHER active session (issued before this
+    // change) is instantly invalidated on their next request. Issue a
+    // fresh token below for THIS session so the person changing their own
+    // password isn't logged out by their own action.
+    user.tokenVersion = (user.tokenVersion || 0) + 1
     await user.save()
 
-    return res.json({ message: 'Password changed successfully.' })
+    const token = await signAuthToken(user)
+    return res.json({ message: 'Password changed successfully.', token })
   } catch (err) {
     console.error('changePassword error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ── POST /api/auth/logout-all-sessions ──
+   Protected — "Log out of all sessions" button on the admin Settings
+   page. Bumps tokenVersion, which invalidates every token issued so
+   far, including the one used to call this endpoint — so the admin
+   who clicks it gets logged out too, matching "ends every active
+   login at once". */
+export async function logoutAllSessions(req, res) {
+  try {
+    const user = await User.findById(req.user._id)
+    if (!user) return res.status(404).json({ message: 'User not found.' })
+
+    user.tokenVersion = (user.tokenVersion || 0) + 1
+    await user.save()
+
+    return res.json({ message: 'All sessions have been logged out.' })
+  } catch (err) {
+    console.error('logoutAllSessions error:', err)
     return res.status(500).json({ message: 'Server error.' })
   }
 }

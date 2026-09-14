@@ -56,11 +56,12 @@ export const getConfig = async (req, res) => {
     if (needsSave) await config.save()
 
     // getConfig is a PUBLIC route (Footer, Navbar, Threats/Contact pages all
-    // read from it unauthenticated) — notificationEmail is an internal admin
-    // setting and must never leave this response. Worker whatsapp/telegram/
-    // email fields are fine; those are meant to be shown to visitors.
+    // read from it unauthenticated) — notificationEmail and adminSessionSeconds
+    // are internal admin settings and must never leave this response. Worker
+    // whatsapp/telegram/email fields are fine; those are meant to be shown to visitors.
     const publicConfig = config.toObject()
     delete publicConfig.notificationEmail
+    delete publicConfig.adminSessionSeconds
 
     return res.status(200).json(publicConfig)
   } catch (error) {

@@ -10,6 +10,7 @@ const workerSchema = new mongoose.Schema({
   whatsapp:       { type: String, default: '', trim: true }, // digits only, e.g. 16502184673
   telegramHandle: { type: String, default: '', trim: true }, // no @ or URL, e.g. WHTSIPA_DigitalTools
   email:          { type: String, default: '', trim: true },
+  phone:          { type: String, default: '', trim: true }, // digits only (with country code), for a plain "Call Us" link — separate from WhatsApp since some contacts want a distinct callable line
 })
 
 // Single-document config store for admin-editable site settings
@@ -48,10 +49,24 @@ const adminConfigSchema = new mongoose.Schema({
      Just a Telegram link — no per-worker split requested for this one. */
   toolsTelegramLink: { type: String, default: 'https://t.me/WHTSIPA_DigitalTools' },
 
+  /* ── "You Need Help" scenario-failure prompt (Threats page quiz) ──
+     Shown after a visitor fails 3 quiz scenarios. Was hardcoded to a
+     broken/nonexistent Telegram username before this field existed —
+     default below reuses a known-working handle as a safe placeholder
+     until the admin sets the real one via Settings. */
+  scenarioActiveRepLink: { type: String, default: 'https://t.me/WHTSIPA_DigitalTools' },
+
   /* ── Internal admin notifications (not public-facing) ──
      Address that receives "new submission" alerts. Empty string =
      fall back to process.env.MAIL_USER (see mailer.js). */
   notificationEmail: { type: String, default: '' },
+
+  /* ── Admin panel session rules ──
+     Applies only to accounts with role 'admin' — regular user sessions
+     are untouched. Default is deliberately the shortest allowed value
+     (30s) until an admin explicitly picks something longer, per the
+     client's explicit request for a safe-by-default starting point. */
+  adminSessionSeconds: { type: Number, default: 30, min: 30, max: 1800 },
 }, { timestamps: true })
 
 export default mongoose.model('AdminConfig', adminConfigSchema)

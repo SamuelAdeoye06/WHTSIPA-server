@@ -75,6 +75,11 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  // Custom response headers are invisible to frontend JS unless listed
+  // here — X-Refreshed-Token carries the sliding admin-session renewal
+  // (see auth.middleware.js protect()); without this, the browser
+  // silently drops it and admin sessions would never actually extend.
+  exposedHeaders: ['X-Refreshed-Token'],
 }))
 
 /* ── Body parsing ── */

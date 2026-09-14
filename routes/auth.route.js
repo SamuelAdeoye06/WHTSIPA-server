@@ -10,6 +10,7 @@ import {
   forgotPassword,
   resetPassword,
   changePassword,
+  logoutAllSessions,
 } from '../controllers/auth.controller.js'
 
 const router = Router()
@@ -45,5 +46,6 @@ router.get('/me',               protect,        getMe)
 router.post('/forgot-password', authLimit,      forgotPassword)
 router.post('/reset-password',                  resetPassword)
 router.post('/change-password', protect,        changePassword)
+router.post('/logout-all-sessions', protect,    logoutAllSessions)
 
 export default router
