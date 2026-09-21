@@ -187,6 +187,17 @@ export async function resendOtp(req, res) {
   }
 }
 
+/* Short-lived, single-purpose token handed back by login() instead of a
+   real session when the account has 2FA enabled — proves the password
+   step already succeeded, but grants no session privileges on its own
+   until verifyLogin2FA (twoFactor.controller.js) confirms the second
+   factor. Kept here rather than in twoFactor.controller.js, which
+   already imports signAuthToken from this file — importing back the
+   other way would create a circular dependency between the two. */
+function signPending2FAToken(userId) {
+  return signToken({ id: userId, purpose: '2fa-pending' }, { expiresIn: '5m' })
+}
+
 /* ── POST /api/auth/login ── */
 export async function login(req, res) {
   try {
@@ -203,6 +214,17 @@ export async function login(req, res) {
 
     if (user.isRestricted)
       return res.status(403).json({ message: 'This account has been restricted. Please contact support for assistance.' })
+
+    // Password checks out — if 2FA is enabled, stop here and hand back a
+    // pending token instead of a real session. The frontend prompts for
+    // the authenticator code next and calls /auth/2fa/verify-login with
+    // it, which is what actually issues the real token.
+    if (user.twoFactorEnabled) {
+      return res.json({
+        requires2FA:  true,
+        pendingToken: signPending2FAToken(user._id),
+      })
+    }
 
     const token = await signAuthToken(user)
 
@@ -256,6 +278,7 @@ export function getMe(req, res) {
     email:     u.email,
     country:   u.country,
     role:      u.role,
+    twoFactorEnabled: u.twoFactorEnabled,
   })
 }
 

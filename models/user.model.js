@@ -21,6 +21,20 @@ const userSchema = new mongoose.Schema({
   // before the bump carries the old value and gets rejected by protect
   // middleware, effectively invalidating every session at once.
   tokenVersion: { type: Number, default: 0 },
+
+  // ── Two-factor auth (TOTP via Google Authenticator / any authenticator
+  // app) — optional, self-enabled from the admin Settings page. ──
+  twoFactorEnabled:  { type: Boolean, default: false },
+  // The active, confirmed secret — only set once setup is completed.
+  twoFactorSecret:   { type: String, select: false },
+  // Holds a freshly generated secret during setup, before the admin has
+  // confirmed it with a real code from their app. Never activated on its
+  // own — confirmSetup2FA is what promotes this to twoFactorSecret.
+  twoFactorPendingSecret: { type: String, select: false },
+  // One-time recovery codes for "lost/wiped my authenticator" — stored as
+  // SHA-256 hashes only (same principle as OTP hashing above), each
+  // removed from the array the moment it's used.
+  twoFactorBackupCodes: { type: [String], select: false, default: undefined },
 }, { timestamps: true })
 
 // Hash password before save
