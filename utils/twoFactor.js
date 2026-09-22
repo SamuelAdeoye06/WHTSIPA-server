@@ -35,9 +35,17 @@ export async function verifyTotpCode(code, secret) {
 
 /* Same hashing approach as OTPs elsewhere in this codebase — store only
    the hash, never the raw code, so a DB leak doesn't hand out working
-   backup codes. */
+   backup codes.
+
+   Normalizes away the dash and any whitespace before hashing, on BOTH
+   generation and verification — so "2638-7D63", "26387D63", and
+   "2638 -7d63" (extra space, lowercase) all hash identically. Without
+   this, a code that's correct but typed/pasted slightly differently
+   than exactly how it was displayed (no dash, stray space) would fail
+   to match even though it's genuinely the right code. */
 function hashBackupCode(code) {
-  return crypto.createHash('sha256').update(code).digest('hex')
+  const normalized = String(code).trim().toUpperCase().replace(/[\s-]/g, '')
+  return crypto.createHash('sha256').update(normalized).digest('hex')
 }
 
 /* Generates a fresh set of one-time backup codes. Returns both the raw
@@ -47,6 +55,8 @@ export function generateBackupCodes(count = BACKUP_CODE_COUNT) {
   const raw = Array.from({ length: count }, () =>
     // e.g. "7F3K-9QXZ" — short enough to type by hand if needed, long
     // enough to not be brute-forceable within any reasonable rate limit.
+    // hashBackupCode strips the dash before hashing, so it's purely a
+    // display convenience and doesn't need to match on input.
     crypto.randomBytes(4).toString('hex').toUpperCase().match(/.{1,4}/g).join('-')
   )
   return { raw, hashed: raw.map(hashBackupCode) }
@@ -57,6 +67,5 @@ export function generateBackupCodes(count = BACKUP_CODE_COUNT) {
    removing that entry from the array so each code only works once. */
 export function matchBackupCode(code, hashedCodes = []) {
   if (!code) return -1
-  const hash = hashBackupCode(String(code).trim().toUpperCase())
-  return hashedCodes.indexOf(hash)
+  return hashedCodes.indexOf(hashBackupCode(code))
 }
