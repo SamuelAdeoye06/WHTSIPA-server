@@ -56,6 +56,13 @@ const adminConfigSchema = new mongoose.Schema({
      until the admin sets the real one via Settings. */
   scenarioActiveRepLink: { type: String, default: 'https://t.me/WHTSIPA_DigitalTools' },
 
+  /* The button's visible label/username on that same "You Need Help"
+     prompt — separate from the link above, which only controls where it
+     goes, not what it says. Defaults to the text that was hardcoded
+     before this field existed, so nothing changes on the public site
+     until the admin actually sets a real username here. */
+  scenarioActiveRepText: { type: String, default: 'Contact Active Representative' },
+
   /* ── Internal admin notifications (not public-facing) ──
      Address that receives "new submission" alerts. Empty string =
      fall back to process.env.MAIL_USER (see mailer.js). */
