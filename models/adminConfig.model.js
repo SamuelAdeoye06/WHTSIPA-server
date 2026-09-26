@@ -63,6 +63,17 @@ const adminConfigSchema = new mongoose.Schema({
      until the admin actually sets a real username here. */
   scenarioActiveRepText: { type: String, default: 'Contact Active Representative' },
 
+  /* ── "Need personalised recovery support?" prompt (Recovery Steps view,
+     reached from Threats → View Recovery Steps) ──
+     Previously this had NO dedicated field at all — WhatsipModal's
+     recovery-mode WhatsApp/Telegram buttons were silently reusing whichever
+     worker was active in "Hire Our Team Channels" (hirePageWorkers), which
+     is a different, unrelated admin section. That mismatch is why editing
+     other channel settings never appeared to change this screen. These two
+     fields give it its own admin-editable home. */
+  recoveryWhatsappNumber: { type: String, default: '19293816441', trim: true }, // digits only, e.g. 19293816441
+  recoveryTelegramHandle: { type: String, default: 'WHTSIPA_DigitalTools', trim: true }, // no @ or URL
+
   /* ── Internal admin notifications (not public-facing) ──
      Address that receives "new submission" alerts. Empty string =
      fall back to process.env.MAIL_USER (see mailer.js). */
