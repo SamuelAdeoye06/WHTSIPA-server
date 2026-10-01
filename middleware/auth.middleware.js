@@ -11,7 +11,11 @@ export async function protect(req, res, next) {
     req.user = await User.findById(payload.id).select('-password')
     if (!req.user) return res.status(401).json({ message: 'User not found' })
     if (req.user.isRestricted) {
-      return res.status(403).json({ message: 'This account has been restricted. Please contact support for assistance.' })
+      // `code` lets the frontend tell this apart from other 403s (admin-only
+      // routes, unverified email, region block) so it can react specifically
+      // to a restricted account still trying to use a live session — see
+      // api.js's response interceptor and services/authRedirect.js.
+      return res.status(403).json({ message: 'This account has been restricted. Please contact support for assistance.', code: 'ACCOUNT_RESTRICTED' })
     }
     // A password change or "log out all sessions" bumps tokenVersion on the
     // user record — any token issued before that bump carries the old value
