@@ -208,11 +208,12 @@ export async function seedCountriesIfEmpty() {
   if (count > 0) return // already seeded
 
   const docs = WORLD_COUNTRIES.map(c => ({
-    code:           c.code,
-    name:           c.name,
-    dial:           c.dial,
-    signupAllowed:  true,
-    showInDropdown: true,
+    code:               c.code,
+    name:               c.name,
+    dial:               c.dial,
+    signupAllowed:      true,
+    showInDropdown:     true,
+    pageAccessAllowed:  true,
   }))
   await CountrySettings.insertMany(docs, { ordered: false })
   console.log(`✅ CountrySettings seeded with ${docs.length} countries`)
@@ -245,7 +246,7 @@ export async function getAdminCountries(req, res) {
   try {
     const countries = await CountrySettings
       .find()
-      .select('code name dial signupAllowed showInDropdown -_id')
+      .select('code name dial signupAllowed showInDropdown pageAccessAllowed -_id')
       .sort({ name: 1 })
     return res.json(countries)
   } catch (err) {
@@ -256,16 +257,18 @@ export async function getAdminCountries(req, res) {
 
 /* ─────────────────────────────────────────────────────────────────
    PATCH /api/countries/:code
-   Admin only — update signupAllowed and/or showInDropdown.
+   Admin only — update signupAllowed, showInDropdown, and/or
+   pageAccessAllowed.
 ───────────────────────────────────────────────────────────────── */
 export async function patchCountry(req, res) {
   try {
     const { code } = req.params
-    const { signupAllowed, showInDropdown } = req.body
+    const { signupAllowed, showInDropdown, pageAccessAllowed } = req.body
 
     const update = {}
-    if (typeof signupAllowed  === 'boolean') update.signupAllowed  = signupAllowed
-    if (typeof showInDropdown === 'boolean') update.showInDropdown = showInDropdown
+    if (typeof signupAllowed     === 'boolean') update.signupAllowed     = signupAllowed
+    if (typeof showInDropdown    === 'boolean') update.showInDropdown    = showInDropdown
+    if (typeof pageAccessAllowed === 'boolean') update.pageAccessAllowed = pageAccessAllowed
 
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ message: 'Nothing to update.' })
@@ -275,12 +278,36 @@ export async function patchCountry(req, res) {
       { code: code.toUpperCase() },
       { $set: update },
       { new: true }
-    ).select('code name dial signupAllowed showInDropdown -_id')
+    ).select('code name dial signupAllowed showInDropdown pageAccessAllowed -_id')
 
     if (!updated) return res.status(404).json({ message: 'Country not found.' })
     return res.json(updated)
   } catch (err) {
     console.error('patchCountry error:', err)
+    return res.status(500).json({ message: 'Server error.' })
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   GET /api/countries/blocked
+   Public, unauthenticated — intentionally. This is called by
+   WHTSIPA-client/middleware.js (Vercel Routing Middleware, running at
+   the edge, not from an admin's logged-in browser) to decide whether to
+   let a visitor's request through at all. It returns nothing sensitive —
+   just which ISO codes currently have pageAccessAllowed = false — so
+   there's no reason to gate it behind admin auth, and gating it would
+   defeat its purpose.
+   Kept deliberately tiny (codes only, no names/dials) since this is
+   fetched on a cache-refresh cycle from the edge, not a normal page load.
+───────────────────────────────────────────────────────────────── */
+export async function getBlockedCountries(req, res) {
+  try {
+    const blocked = await CountrySettings
+      .find({ pageAccessAllowed: false })
+      .select('code -_id')
+    return res.json(blocked.map(c => c.code))
+  } catch (err) {
+    console.error('getBlockedCountries error:', err)
     return res.status(500).json({ message: 'Server error.' })
   }
 }
