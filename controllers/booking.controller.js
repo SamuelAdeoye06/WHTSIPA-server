@@ -52,6 +52,17 @@ export async function submitBooking(req, res) {
     if (!preferredDate)  return res.status(400).json({ message: 'Preferred date is required.' })
     if (!preferredTime)  return res.status(400).json({ message: 'Preferred time is required.' })
 
+    // The frontend already sets min={today} on the date picker (same
+    // YYYY-MM-DD computation as below), but that's a client-side-only
+    // restriction — trivially bypassed by typing a date manually on some
+    // mobile browsers, or by calling this endpoint directly. This was the
+    // actual gap that let a genuinely past date (e.g. Aug 2026 while the
+    // real date was October) through with no server-side check at all.
+    const todayStr = new Date().toISOString().split('T')[0]
+    if (preferredDate < todayStr) {
+      return res.status(400).json({ message: 'Preferred date cannot be in the past.' })
+    }
+
     const session = await BookingSession.create({
       user:  req.user._id,
       name:  name.trim(),
