@@ -18,22 +18,28 @@ async function getNotificationInbox() {
 
 /* ── Shared "go check the panel" notification template ──
    Deliberately carries ZERO submitted content — no names, no message
-   bodies, no contact details. Just what came in and a link to it.
-   This is separate from the manual "Send to Email" action below,
-   which an admin triggers on purpose and does carry full content. */
-function notificationHtml({ heading, bodyLine, panelLink }) {
+   bodies, no contact details. Just what came in, with no clickable
+   link of any kind — client instruction, repeated more than once: admin
+   notifications must be pure "look out for X" heads-ups, never a link to
+   click through. Reasoning given: these are typically among the first
+   emails this domain sends to a given admin mailbox, same as the
+   OTP/verification email — and that one landing safely in the inbox
+   (confirmed via mail-tester 10/10 + real-world testing) is specifically
+   because it carries no links either. A link-containing email being among
+   the first from this domain risks landing in spam and dragging down
+   domain trust for everything after it, by the same logic.
+   This is separate from the manual "Send to Email" action below, which an
+   admin triggers on purpose and does carry full content (but still no
+   links — see that function). */
+function notificationHtml({ heading, bodyLine }) {
   return `
     <div style="font-family:sans-serif;max-width:480px;margin:auto">
       <h2 style="color:#0f172a;border-bottom:2px solid #0d9488;padding-bottom:0.5rem">
         ${heading}
       </h2>
       <p style="color:#374151;line-height:1.6">${bodyLine}</p>
-      ${panelLink ? `
-        <a href="${panelLink}" style="display:inline-block;background:#0d9488;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:700;margin:14px 0">
-          Open in Admin Panel
-        </a>` : ''}
       <p style="color:#9ca3af;font-size:0.78rem;margin-top:1.5rem">
-        This is an automatic notification. No submitted details are included here — sign in to the panel to view them.
+        This is an automatic notification. No submitted details are included here — sign in to the admin panel directly to view them.
       </p>
     </div>
   `
@@ -117,17 +123,16 @@ export async function sendPasswordResetEmail(to, token) {
   })
 }
 
-export async function sendContactNotification({ name, email, subject, message, panelLink }) {
+export async function sendContactNotification({ name, email, subject, message }) {
   const inbox = await getNotificationInbox()
 
-  // Internal notification — zero submitted content, just a heads-up + link.
+  // Internal notification — zero submitted content, no links, just a heads-up.
   await send({
     to: inbox,
     subject: `[WHTS Contact] A new contact message came in`,
     html: notificationHtml({
       heading: 'New Contact Message',
-      bodyLine: 'A new contact message came in. Go check the panel for the details.',
-      panelLink,
+      bodyLine: 'A new contact message came in. Go check the admin panel for the details.',
     }),
   })
 
@@ -135,7 +140,7 @@ export async function sendContactNotification({ name, email, subject, message, p
   await sendSubmissionReceiptEmail(email, name, 'contact message')
 }
 
-export async function sendReportNotification({ fullName, email, reportType, incidentType, panelLink }) {
+export async function sendReportNotification({ fullName, email, reportType, incidentType }) {
   const inbox = await getNotificationInbox()
 
   await send({
@@ -143,8 +148,7 @@ export async function sendReportNotification({ fullName, email, reportType, inci
     subject: `[WHTSIPA Report] A new ${reportType} incident report came in`,
     html: notificationHtml({
       heading: '🚨 New Incident Report Submitted',
-      bodyLine: `A new ${reportType} incident report came in. Go check the panel for the details.`,
-      panelLink,
+      bodyLine: `A new ${reportType} incident report came in. Go check the admin panel for the details.`,
     }),
   })
 
@@ -153,7 +157,7 @@ export async function sendReportNotification({ fullName, email, reportType, inci
   }
 }
 
-export async function sendBookingNotification({ name, email, panelLink }) {
+export async function sendBookingNotification({ name, email }) {
   const inbox = await getNotificationInbox()
 
   await send({
@@ -161,8 +165,7 @@ export async function sendBookingNotification({ name, email, panelLink }) {
     subject: `📞 A new call session booking came in`,
     html: notificationHtml({
       heading: '📞 New Call Session Booking',
-      bodyLine: 'A new call session booking came in. Go check the panel for the details.',
-      panelLink,
+      bodyLine: 'A new call session booking came in. Go check the admin panel for the details.',
     }),
   })
 

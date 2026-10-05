@@ -6,7 +6,10 @@ const userSchema = new mongoose.Schema({
   lastName:     { type: String, required: true, trim: true },
   email:        { type: String, required: true, unique: true, lowercase: true, trim: true },
   country:      { type: String, required: true },
-  phone:        { type: String, required: true },
+  // 20 covers the longest realistic "dial code + digits" combined value
+  // (e.g. "+234 8012345678") with room to spare — this was previously
+  // unbounded, which is how a 29-digit garbage number got through signup.
+  phone:        { type: String, required: true, maxlength: 20 },
   password:     { type: String, required: true, minlength: 12 },
   isVerified:   { type: Boolean, default: false },
   otpHash:      { type: String },

@@ -39,6 +39,16 @@ export async function register(req, res) {
     if (!firstName || !lastName || !email || !country || !phone || !password)
       return res.status(400).json({ message: 'All fields are required.' })
 
+    // Frontend already caps this at input time (see phoneFormat.js /
+    // PHONE_DIGITS_MAX_LENGTH), but that's bypassable by calling this
+    // endpoint directly — this is the actual enforcement. Matches the
+    // phone field's new maxlength: 20 in user.model.js; checked explicitly
+    // here first so this returns the same clear 400 style as every other
+    // validation above, rather than falling through to the model's
+    // validator and a generic 500 in the catch block below.
+    if (phone.length > 20)
+      return res.status(400).json({ message: 'Phone number is too long.' })
+
     // Check if the country is allowed to sign up
     const countryDoc = await CountrySettings.findOne({ code: country.toUpperCase() })
     if (countryDoc && !countryDoc.signupAllowed) {

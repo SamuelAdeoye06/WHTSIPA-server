@@ -6,7 +6,7 @@ const reportSchema = new mongoose.Schema({
   incidentType:  { type: String, required: true },
   fullName:      { type: String },
   email:         { type: String },
-  phone:         { type: String },
+  phone:         { type: String, maxlength: 20 },
   country:       { type: String },
   organization:  { type: String },
   targetedName:  { type: String },

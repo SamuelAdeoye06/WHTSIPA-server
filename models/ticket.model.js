@@ -42,7 +42,8 @@ const ticketSchema = new mongoose.Schema({
     required: true
   },
   phone: {
-    type: String
+    type: String,
+    maxlength: 20
   },
   contactMethod: {
     type: String,

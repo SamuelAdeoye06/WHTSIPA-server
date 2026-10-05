@@ -22,6 +22,14 @@ export async function createTicket(req, res) {
       return res.status(400).json({ message: 'Required fields are missing.' })
     }
 
+    // phone is optional here too, but when present it must stay within
+    // the same bound as everywhere else (see phoneFormat.js on the
+    // frontend, maxlength: 20 on the model) — checked explicitly for a
+    // clear 400 instead of a generic 500 if that's ever bypassed.
+    if (phone && phone.length > 20) {
+      return res.status(400).json({ message: 'Phone number is too long.' })
+    }
+
     // Upsert/Create ticket. If it's a livechat pre-creation, we might want to update it if the user keeps using the chatbot,
     // but in this case, since ticketId is unique, we can search if a ticket with ticketId already exists.
     // If it exists, we can update it or just create a new one. Since a session is unique, let's do a findOneAndUpdate with upsert

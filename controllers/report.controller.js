@@ -15,6 +15,14 @@ export async function submitReport(req, res) {
     if (!reportType || !incidentType || !detail)
       return res.status(400).json({ message: 'Required fields are missing.' })
 
+    // phone is optional here, but when present it must stay within the
+    // same bound the frontend already enforces at input time (see
+    // phoneFormat.js) and the model's maxlength: 20 — checked explicitly
+    // so a bypass of the frontend gets a clear 400, not a generic 500 from
+    // the model validator.
+    if (phone && phone.length > 20)
+      return res.status(400).json({ message: 'Phone number is too long.' })
+
     const report = await Report.create({
       user: req.user._id,
       reportType, incidentType, fullName, email,

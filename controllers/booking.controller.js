@@ -49,6 +49,8 @@ export async function submitBooking(req, res) {
     if (!name?.trim())   return res.status(400).json({ message: 'Full name is required.' })
     if (!email?.trim())  return res.status(400).json({ message: 'Email is required.' })
     if (!phone?.trim())  return res.status(400).json({ message: 'Phone number is required.' })
+    if (phone.trim().length > 20)
+      return res.status(400).json({ message: 'Phone number is too long.' })
     if (!preferredDate)  return res.status(400).json({ message: 'Preferred date is required.' })
     if (!preferredTime)  return res.status(400).json({ message: 'Preferred time is required.' })
 
