@@ -44,7 +44,10 @@ export async function updateCallbackNumber(req, res) {
    Protected — authenticated user books a call session. */
 export async function submitBooking(req, res) {
   try {
-    const { name, email, phone, preferredDate, preferredTime, notes } = req.body
+    const { name, phone, preferredDate, preferredTime, notes } = req.body
+    // Always the account's own verified email, never whatever the client
+    // submitted — same reasoning/enforcement as contact.controller.js.
+    const email = req.user.email
 
     if (!name?.trim())   return res.status(400).json({ message: 'Full name is required.' })
     if (!email?.trim())  return res.status(400).json({ message: 'Email is required.' })

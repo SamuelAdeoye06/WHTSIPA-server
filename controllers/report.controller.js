@@ -5,12 +5,15 @@ import { sendReportNotification } from '../utils/mailer.js'
 export async function submitReport(req, res) {
   try {
     const {
-      reportType, incidentType, fullName, email,
+      reportType, incidentType, fullName,
       phone, country, organization, targetedName, socialHandles, detail,
       communicationMethod, communicationValue, financialLoss, consentShareAnonymized,
       contactedAuthorities, incidentStatus, effectsOfIncident, linksImposterDetails,
       evidenceFiles
     } = req.body
+    // Always the account's own verified email, never whatever the client
+    // submitted — same reasoning/enforcement as contact.controller.js.
+    const email = req.user.email
 
     if (!reportType || !incidentType || !detail)
       return res.status(400).json({ message: 'Required fields are missing.' })

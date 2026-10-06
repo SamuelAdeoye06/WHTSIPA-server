@@ -4,13 +4,19 @@ import { sendContactNotification } from '../utils/mailer.js'
 /* ── POST /api/contact/submit ── */
 export async function submitContact(req, res) {
   try {
-    const { name, email, subject, message } = req.body
+    const { name, subject, message } = req.body
+    // Email is never taken from the request body for a logged-in
+    // submission — always the account's own verified address. The
+    // frontend already disables this field once signed in, but that's
+    // only a UI convenience; this is the actual enforcement, since a
+    // disabled input is trivially bypassed via devtools or a direct API
+    // call. Per client: submissions must be reliably traceable to one
+    // verified account, so the email on file is authoritative, not
+    // whatever the client happens to send.
+    const email = req.user.email
 
     if (!name || !email || !subject || !message)
       return res.status(400).json({ message: 'All fields are required.' })
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      return res.status(400).json({ message: 'Enter a valid email address.' })
 
     // Save to DB
     const contact = await Contact.create({ user: req.user._id, name, email, subject, message })
