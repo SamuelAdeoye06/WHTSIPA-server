@@ -90,7 +90,7 @@ WHTSIPA Security & Support Team`
 export async function sendOtpEmail(to, otp, firstName = '') {
   await send({
     to,
-    subject: `${otp} is your WHTS verification code`,
+    subject: `${otp} is your WHTSIPA verification code`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:auto">
         <h2 style="color:#0f172a">Confirm your email</h2>
@@ -109,7 +109,7 @@ export async function sendPasswordResetEmail(to, token) {
   const link = `${process.env.CLIENT_URL}/reset-password?token=${token}`
   await send({
     to,
-    subject: 'Reset your WHTS password',
+    subject: 'Reset your WHTSIPA password',
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:auto">
         <h2 style="color:#0f172a">Reset your password</h2>
@@ -129,7 +129,7 @@ export async function sendContactNotification({ name, email, subject, message })
   // Internal notification — zero submitted content, no links, just a heads-up.
   await send({
     to: inbox,
-    subject: `[WHTS Contact] A new contact message came in`,
+    subject: `[WHTSIPA Contact] A new contact message came in`,
     html: notificationHtml({
       heading: 'New Contact Message',
       bodyLine: 'A new contact message came in. Go check the admin panel for the details.',
