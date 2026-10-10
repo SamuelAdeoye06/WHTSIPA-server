@@ -174,6 +174,23 @@ export async function sendBookingNotification({ name, email }) {
   }
 }
 
+/* ── Ticket submission notification ──
+   Sent only for genuine form submissions (report / hire / request), never
+   for livechat auto-tickets. Same zero-content, zero-link pattern as every
+   other admin notification above. */
+export async function sendTicketNotification({ type }) {
+  const inbox = await getNotificationInbox()
+
+  await send({
+    to: inbox,
+    subject: `[WHTSIPA Ticket] A new ${type} ticket came in`,
+    html: notificationHtml({
+      heading: `🎫 New ${type.charAt(0).toUpperCase() + type.slice(1)} Ticket`,
+      bodyLine: `A new ${type} ticket came in. Go check the Tickets section in the admin panel.`,
+    }),
+  })
+}
+
 /* ── Manual "Send to Email" action ──
    Deliberate admin choice, separate from the automatic notifications
    above. Carries the FULL record content, laid out in a boxed/grid

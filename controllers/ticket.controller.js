@@ -1,4 +1,5 @@
 import Ticket from '../models/ticket.model.js'
+import { sendTicketNotification } from '../utils/mailer.js'
 
 /* ── POST /api/tickets/create ── */
 export async function createTicket(req, res) {
@@ -30,6 +31,12 @@ export async function createTicket(req, res) {
       return res.status(400).json({ message: 'Phone number is too long.' })
     }
 
+    // Check BEFORE the upsert whether this ticket already exists — used
+    // below to decide whether to send an admin notification. Mongoose 8's
+    // findOneAndUpdate no longer sets `isNew` on the returned doc, so an
+    // explicit exists() check is the safe approach.
+    const alreadyExists = await Ticket.exists({ ticketId })
+
     // Upsert/Create ticket. If it's a livechat pre-creation, we might want to update it if the user keeps using the chatbot,
     // but in this case, since ticketId is unique, we can search if a ticket with ticketId already exists.
     // If it exists, we can update it or just create a new one. Since a session is unique, let's do a findOneAndUpdate with upsert
@@ -52,6 +59,17 @@ export async function createTicket(req, res) {
       },
       { new: true, upsert: true }
     )
+
+    // Fire admin notification only for NEWLY created form submissions
+    // (report / hire / request). Never for livechat auto-tickets (those
+    // are just session bookkeeping), and never when an existing ticket is
+    // merely being updated with the same ticketId.
+    const NOTIFY_TYPES = ['report', 'hire', 'request']
+    if (!alreadyExists && NOTIFY_TYPES.includes(type)) {
+      sendTicketNotification({ type }).catch(err =>
+        console.error('Ticket email notification failed:', err)
+      )
+    }
 
     return res.status(201).json({
       message: 'Ticket recorded successfully.',

@@ -46,8 +46,14 @@ const adminConfigSchema = new mongoose.Schema({
   activeHirePageWorkerId:    { type: String, default: '' },
 
   /* ── "Request Security Tools" modal (Threats page) ──
-     Just a Telegram link — no per-worker split requested for this one. */
-  toolsTelegramLink: { type: String, default: 'https://t.me/WHTSIPA_DigitalTools' },
+     toolsTelegramLink powers the "Telegram Chat" card (direct message link
+     and @username display) plus the AI-chat Telegram handoff. Stored as a
+     full https://t.me/... URL for historical reasons.
+     toolsTelegramChannelLink powers the separate "Join Telegram Support
+     Channel" card only. Added later — defaults to the same value so the
+     public modal looks identical until the admin sets a distinct channel. */
+  toolsTelegramLink:        { type: String, default: 'https://t.me/WHTSIPA_DigitalTools' },
+  toolsTelegramChannelLink: { type: String, default: 'https://t.me/WHTSIPA_DigitalTools' },
 
   /* ── "You Need Help" scenario-failure prompt (Threats page quiz) ──
      Shown after a visitor fails 3 quiz scenarios. Was hardcoded to a

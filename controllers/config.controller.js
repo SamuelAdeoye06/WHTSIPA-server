@@ -82,6 +82,35 @@ export const updateConfig = async (req, res) => {
       ...safeUpdates
     } = req.body
 
+    // ── Telegram username validation (toolsTelegramLink) ──
+    // Accepts "@name", "name", or a full "https://t.me/name" URL and
+    // normalizes to a full URL. The value becomes an href attribute on the
+    // public site, so anything that isn't a valid Telegram username must be
+    // rejected — especially javascript: or data: URIs.
+    if (safeUpdates.toolsTelegramLink !== undefined) {
+      let raw = safeUpdates.toolsTelegramLink.trim()
+      // Strip a leading @ or a full t.me URL prefix to get the bare username
+      raw = raw.replace(/^https?:\/\/t\.me\//, '').replace(/^@/, '')
+      if (!/^[A-Za-z0-9_]{5,32}$/.test(raw)) {
+        return res.status(400).json({
+          message: 'Telegram username must be 5–32 characters of letters, digits and underscores only.',
+        })
+      }
+      safeUpdates.toolsTelegramLink = `https://t.me/${raw}`
+    }
+
+    // ── Telegram channel link validation (toolsTelegramChannelLink) ──
+    // Must be a well-formed https://t.me/... URL — no other scheme allowed.
+    if (safeUpdates.toolsTelegramChannelLink !== undefined) {
+      const link = safeUpdates.toolsTelegramChannelLink.trim()
+      if (!/^https:\/\/t\.me\/[A-Za-z0-9_]{5,32}$/.test(link)) {
+        return res.status(400).json({
+          message: 'Telegram channel link must be a valid https://t.me/... URL with a 5–32 character channel name.',
+        })
+      }
+      safeUpdates.toolsTelegramChannelLink = link
+    }
+
     const config = await AdminConfig.findOneAndUpdate(
       { key: 'main' },
       { $set: safeUpdates },
