@@ -175,19 +175,29 @@ export async function sendBookingNotification({ name, email }) {
 }
 
 /* ── Ticket submission notification ──
-   Sent only for genuine form submissions (report / hire / request), never
-   for livechat auto-tickets. Same zero-content, zero-link pattern as every
-   other admin notification above. */
+   Sent for genuine form submissions (report / hire / request) when the
+   ticket is first created, and for livechat tickets when the visitor
+   actually starts chatting (not on auto-creation). Same zero-content,
+   zero-link pattern as every other admin notification above. */
 export async function sendTicketNotification({ type }) {
   const inbox = await getNotificationInbox()
 
+  // livechat needs a distinct, natural-reading subject/heading/body
+  const isLiveChat = type === 'livechat'
+  const subject  = isLiveChat
+    ? '[WHTSIPA Ticket] A new live chat started'
+    : `[WHTSIPA Ticket] A new ${type} ticket came in`
+  const heading  = isLiveChat
+    ? '💬 New Live Chat'
+    : `🎫 New ${type.charAt(0).toUpperCase() + type.slice(1)} Ticket`
+  const bodyLine = isLiveChat
+    ? 'A new live chat started. Go check the Tickets section in the admin panel.'
+    : `A new ${type} ticket came in. Go check the Tickets section in the admin panel.`
+
   await send({
     to: inbox,
-    subject: `[WHTSIPA Ticket] A new ${type} ticket came in`,
-    html: notificationHtml({
-      heading: `🎫 New ${type.charAt(0).toUpperCase() + type.slice(1)} Ticket`,
-      bodyLine: `A new ${type} ticket came in. Go check the Tickets section in the admin panel.`,
-    }),
+    subject,
+    html: notificationHtml({ heading, bodyLine }),
   })
 }
 

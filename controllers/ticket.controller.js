@@ -202,7 +202,31 @@ export async function deleteTicket(req, res) {
    threshold as long as anyone keeps glancing at it. */
 export async function updateTicketActivity(req, res) {
   try {
-    const { messageCount, hasHumanAgent, isReadByVisitor } = req.body
+    const { messageCount, hasHumanAgent, isReadByVisitor, chatStarted } = req.body
+
+    // ── Live chat start signal ──
+    // Fired once by the client when a visitor actually starts chatting
+    // (first option click or human-agent request), not when the ticket
+    // row is auto-created on page load. The $ne guard makes this
+    // idempotent: only the first PATCH that hits a ticket where
+    // chatStartedNotified is still false will match, so even if two
+    // requests race, only one email is ever sent.
+    if (chatStarted) {
+      const matched = await Ticket.findOneAndUpdate(
+        { _id: req.params.id, user: req.user._id, type: 'livechat', chatStartedNotified: { $ne: true } },
+        { $set: { chatStartedNotified: true, lastActivityAt: new Date() } },
+        { new: true }
+      )
+      if (matched) {
+        sendTicketNotification({ type: 'livechat' }).catch(err =>
+          console.error('Livechat email notification failed:', err)
+        )
+      }
+      // Return early — chatStarted is a dedicated signal, not combined
+      // with the generic field updates below.
+      return res.json(matched || { message: 'Already notified or not found.' })
+    }
+
     const updates = {}
 
     const isGenuineActivity = messageCount !== undefined || hasHumanAgent !== undefined

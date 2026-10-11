@@ -71,6 +71,13 @@ const ticketSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Set atomically to true once a livechat visitor actually starts
+  // chatting, to ensure the admin notification fires exactly once per
+  // session even if the PATCH races or retries (see updateTicketActivity).
+  chatStartedNotified: {
+    type: Boolean,
+    default: false
+  },
   closingSummary: {
     type: String,
     default: ''

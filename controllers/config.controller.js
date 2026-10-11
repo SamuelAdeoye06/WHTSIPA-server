@@ -100,12 +100,20 @@ export const updateConfig = async (req, res) => {
     }
 
     // ── Telegram channel link validation (toolsTelegramChannelLink) ──
-    // Must be a well-formed https://t.me/... URL — no other scheme allowed.
+    // Must be a well-formed https://t.me/... URL — no other scheme or host
+    // allowed, since this value becomes an href on the public site.
+    // Accepted shapes:
+    //   public:  https://t.me/<name>          (5-32 of A-Za-z0-9_)
+    //   invite:  https://t.me/+<code>         (8-64 of A-Za-z0-9_-)
+    //   joinchat: https://t.me/joinchat/<code> (8-64 of A-Za-z0-9_-)
     if (safeUpdates.toolsTelegramChannelLink !== undefined) {
-      const link = safeUpdates.toolsTelegramChannelLink.trim()
-      if (!/^https:\/\/t\.me\/[A-Za-z0-9_]{5,32}$/.test(link)) {
+      const link = safeUpdates.toolsTelegramChannelLink.trim().replace(/\/$/, '')
+      const isPublic   = /^https:\/\/t\.me\/[A-Za-z0-9_]{5,32}$/.test(link)
+      const isInvite   = /^https:\/\/t\.me\/\+[A-Za-z0-9_-]{8,64}$/.test(link)
+      const isJoinchat = /^https:\/\/t\.me\/joinchat\/[A-Za-z0-9_-]{8,64}$/.test(link)
+      if (!isPublic && !isInvite && !isJoinchat) {
         return res.status(400).json({
-          message: 'Telegram channel link must be a valid https://t.me/... URL with a 5–32 character channel name.',
+          message: 'Telegram channel link must be https://t.me/<name> (public) or https://t.me/+<code> / https://t.me/joinchat/<code> (invite). Other URLs are not allowed.',
         })
       }
       safeUpdates.toolsTelegramChannelLink = link
