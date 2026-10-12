@@ -62,8 +62,11 @@ app.use(helmet({
 /* ── CORS — only allow your frontend origin ── */
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  'https://wehelptrackscammersipaddress.com',
+  'https://www.wehelptrackscammersipaddress.com',
   'http://localhost:5173', // Vite dev server
 ].filter(Boolean)
+
 
 app.use(cors({
   origin: (origin, cb) => {
