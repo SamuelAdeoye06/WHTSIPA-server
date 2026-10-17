@@ -54,6 +54,13 @@ const ticketSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  // Human-readable label for where this ticket originated, resolved
+  // server-side from a short allowlist key the client sends at creation.
+  // Set only on first insert so later upserts can't overwrite it.
+  source: {
+    type: String,
+    default: ''
+  },
   status: {
     type: String,
     enum: ['open', 'in-progress', 'resolved', 'ended'],

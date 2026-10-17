@@ -1,6 +1,19 @@
 import Ticket from '../models/ticket.model.js'
 import { sendTicketNotification } from '../utils/mailer.js'
 
+// Maps client-sent keys to human-readable labels shown in the admin UI
+// and alert emails. Only recognised keys are stored; anything else
+// resolves to '' so no arbitrary text reaches the admin panel.
+const SOURCE_LABELS = {
+  'threats-report-form':  'Threats page: Report This Threat form',
+  'threats-hire-form':    'Threats page: Hire Our Team form',
+  'threats-request-form': 'Threats page: Request Security Tools form',
+  'threats-tools-chat':   'Threats page: Request Security Tools chat',
+  'threats-livechat':     'Threats page: live chat',
+  'contact-livechat':     'Contact page: live chat',
+  'report-livechat':      'Report page: live chat',
+}
+
 /* ── POST /api/tickets/create ── */
 export async function createTicket(req, res) {
   try {
@@ -16,7 +29,8 @@ export async function createTicket(req, res) {
       email,
       phone,
       contactMethod,
-      evidenceFiles
+      evidenceFiles,
+      source
     } = req.body
 
     if (!ticketId || !type || !summary || !name || !email) {
@@ -37,26 +51,35 @@ export async function createTicket(req, res) {
     // explicit exists() check is the safe approach.
     const alreadyExists = await Ticket.exists({ ticketId })
 
+    // Resolve the client-sent source key into a display label.
+    // Unknown or missing keys resolve to '' — no free-text reaches the DB.
+    const sourceLabel = SOURCE_LABELS[source] || ''
+
     // Upsert/Create ticket. If it's a livechat pre-creation, we might want to update it if the user keeps using the chatbot,
     // but in this case, since ticketId is unique, we can search if a ticket with ticketId already exists.
     // If it exists, we can update it or just create a new one. Since a session is unique, let's do a findOneAndUpdate with upsert
     // to allow updating livechat tickets as the chat proceeds, or just simple find and update.
+    const updatePayload = {
+      user: req.user._id,
+      type,
+      threatTitle,
+      summary,
+      goals,
+      services: services || [],
+      duration,
+      name,
+      email,
+      phone,
+      contactMethod,
+      evidenceFiles: evidenceFiles || []
+    }
+    // source is set ONLY on first insert — later upserts for the same
+    // ticketId must not overwrite the original provenance label.
+    if (!alreadyExists) updatePayload.source = sourceLabel
+
     const ticket = await Ticket.findOneAndUpdate(
       { ticketId },
-      {
-        user: req.user._id,
-        type,
-        threatTitle,
-        summary,
-        goals,
-        services: services || [],
-        duration,
-        name,
-        email,
-        phone,
-        contactMethod,
-        evidenceFiles: evidenceFiles || []
-      },
+      updatePayload,
       { new: true, upsert: true }
     )
 
@@ -66,7 +89,7 @@ export async function createTicket(req, res) {
     // merely being updated with the same ticketId.
     const NOTIFY_TYPES = ['report', 'hire', 'request']
     if (!alreadyExists && NOTIFY_TYPES.includes(type)) {
-      sendTicketNotification({ type }).catch(err =>
+      sendTicketNotification({ type, sourceLabel }).catch(err =>
         console.error('Ticket email notification failed:', err)
       )
     }

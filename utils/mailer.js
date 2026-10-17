@@ -178,8 +178,11 @@ export async function sendBookingNotification({ name, email }) {
    Sent for genuine form submissions (report / hire / request) when the
    ticket is first created, and for livechat tickets when the visitor
    actually starts chatting (not on auto-creation). Same zero-content,
-   zero-link pattern as every other admin notification above. */
-export async function sendTicketNotification({ type }) {
+   zero-link pattern as every other admin notification above.
+   sourceLabel, when present, tells the admin which page/form the ticket
+   came from — it's resolved server-side from a short allowlist, never
+   free-text from the client. */
+export async function sendTicketNotification({ type, sourceLabel }) {
   const inbox = await getNotificationInbox()
 
   // livechat needs a distinct, natural-reading subject/heading/body
@@ -190,9 +193,13 @@ export async function sendTicketNotification({ type }) {
   const heading  = isLiveChat
     ? '💬 New Live Chat'
     : `🎫 New ${type.charAt(0).toUpperCase() + type.slice(1)} Ticket`
-  const bodyLine = isLiveChat
+
+  let bodyLine = isLiveChat
     ? 'A new live chat started. Go check the Tickets section in the admin panel.'
-    : `A new ${type} ticket came in. Go check the Tickets section in the admin panel.`
+    : `A new ${type} ticket came in.`
+  // Append provenance when available, e.g. "from: Threats page: Hire Our Team form."
+  if (sourceLabel) bodyLine = bodyLine.replace(/\.$/, '') + ` from: ${sourceLabel}.`
+  if (!isLiveChat) bodyLine += ' Go check the Tickets section in the admin panel.'
 
   await send({
     to: inbox,
