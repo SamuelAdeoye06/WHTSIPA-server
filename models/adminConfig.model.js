@@ -80,6 +80,14 @@ const adminConfigSchema = new mongoose.Schema({
   recoveryWhatsappNumber: { type: String, default: '19293816441', trim: true }, // digits only, e.g. 19293816441
   recoveryTelegramHandle: { type: String, default: 'WHTSIPA_DigitalTools', trim: true }, // no @ or URL
 
+  /* ── "Ticket Created!" popup contact channels ──
+     Shown on the success screen after a user submits a Report / Hire /
+     Request ticket via WhatsipModal. Previously these reused the active
+     Hire Our Team worker, but the client wants them separately editable
+     so swapping the hire worker doesn't silently change the popup. */
+  ticketPopupWhatsapp:       { type: String, default: '19293816441', trim: true }, // digits only
+  ticketPopupTelegramHandle: { type: String, default: 'WHTSIPA_DigitalTools', trim: true }, // no @ or URL
+
   /* ── Internal admin notifications (not public-facing) ──
      Address that receives "new submission" alerts. Empty string =
      fall back to process.env.MAIL_USER (see mailer.js). */
